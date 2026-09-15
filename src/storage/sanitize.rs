@@ -2,9 +2,8 @@ use std::path::{Path, PathBuf};
 
 /// Reserved Windows device names that cannot be used as filenames or extensions.
 const RESERVED_WINDOWS_NAMES: &[&str] = &[
-    "CON", "PRN", "AUX", "NUL",
-    "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
-    "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+    "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8",
+    "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
 ];
 
 /// Sanitizes an untrusted string (e.g. publication title) to form a safe, valid cross-platform filename.
@@ -48,9 +47,7 @@ pub fn sanitize_filename(input: &str) -> String {
     }
 
     // Strip leading/trailing periods, spaces, underscores
-    let mut cleaned = collapsed
-        .trim_matches(|c: char| c == '.' || c == ' ' || c == '_')
-        .to_string();
+    let mut cleaned = collapsed.trim_matches(['.', ' ', '_']).to_string();
 
     if cleaned.is_empty() {
         cleaned = "document".to_string();
@@ -59,9 +56,7 @@ pub fn sanitize_filename(input: &str) -> String {
     // Check against Windows reserved device names (case-insensitive)
     let uppercase = cleaned.to_ascii_uppercase();
     for reserved in RESERVED_WINDOWS_NAMES {
-        if uppercase == *reserved
-            || uppercase.starts_with(&format!("{reserved}."))
-        {
+        if uppercase == *reserved || uppercase.starts_with(&format!("{reserved}.")) {
             cleaned = format!("doc_{cleaned}");
             break;
         }
@@ -80,9 +75,7 @@ pub fn sanitize_filename(input: &str) -> String {
             truncated.push(ch);
             byte_count += next_len;
         }
-        cleaned = truncated
-            .trim_end_matches(|c: char| c == '.' || c == ' ' || c == '_')
-            .to_string();
+        cleaned = truncated.trim_end_matches(['.', ' ', '_']).to_string();
         if cleaned.is_empty() {
             cleaned = "document".to_string();
         }
@@ -102,7 +95,7 @@ pub fn safe_output_path(output_dir: &Path, title: &str) -> PathBuf {
 
     // Ensure resulting path is strictly within output_dir
     let candidate = output_dir.join(&filename);
-    
+
     // Normalization check: candidate must have output_dir as its prefix
     candidate
 }
@@ -114,8 +107,14 @@ mod tests {
     #[test]
     fn test_sanitization_removes_traversal_and_forbidden_chars() {
         assert_eq!(sanitize_filename("../../../etc/passwd"), "etc_passwd");
-        assert_eq!(sanitize_filename("hello:world*test?file"), "hello_world_test_file");
-        assert_eq!(sanitize_filename("  trailing spaces and dots...  "), "trailing spaces and dots");
+        assert_eq!(
+            sanitize_filename("hello:world*test?file"),
+            "hello_world_test_file"
+        );
+        assert_eq!(
+            sanitize_filename("  trailing spaces and dots...  "),
+            "trailing spaces and dots"
+        );
         assert_eq!(sanitize_filename(""), "document");
         assert_eq!(sanitize_filename("   "), "document");
     }

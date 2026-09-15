@@ -52,9 +52,18 @@ mod tests {
     #[test]
     fn test_signature_extraction_and_url_signing() {
         let mut headers = HeaderMap::new();
-        headers.insert("x-calameo-hash-expires", HeaderValue::from_static("1789499206"));
-        headers.insert("x-calameo-hash-path", HeaderValue::from_static("%2Fkey%2F%2A"));
-        headers.insert("x-calameo-hash-signature", HeaderValue::from_static("deadbeef1234"));
+        headers.insert(
+            "x-calameo-hash-expires",
+            HeaderValue::from_static("1789499206"),
+        );
+        headers.insert(
+            "x-calameo-hash-path",
+            HeaderValue::from_static("%2Fkey%2F%2A"),
+        );
+        headers.insert(
+            "x-calameo-hash-signature",
+            HeaderValue::from_static("deadbeef1234"),
+        );
 
         let sig = CalameoSignature::from_headers(&headers).expect("Failed to parse signature");
         assert_eq!(sig.expires, 1789499206);

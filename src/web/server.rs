@@ -43,12 +43,13 @@ pub async fn run_server(
         .layer(frame_options_layer())
         .with_state(state);
 
-    let addr: SocketAddr = format!("{host}:{port}").parse().map_err(|e| {
-        DocDownloaderError::InvalidUrl {
-            url: format!("{host}:{port}"),
-            reason: format!("Invalid host/port binding: {e}"),
-        }
-    })?;
+    let addr: SocketAddr =
+        format!("{host}:{port}")
+            .parse()
+            .map_err(|e| DocDownloaderError::InvalidUrl {
+                url: format!("{host}:{port}"),
+                reason: format!("Invalid host/port binding: {e}"),
+            })?;
 
     println!("Starting DocDownloader Web UI on http://{addr}");
     let listener = tokio::net::TcpListener::bind(addr).await.map_err(|e| {

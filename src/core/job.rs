@@ -14,7 +14,10 @@ pub enum JobState {
     ProbingProvider,
     ResolvingMetadata,
     ResolvingPages,
-    Downloading { completed: u32, total: u32 },
+    Downloading {
+        completed: u32,
+        total: u32,
+    },
     VerifyingPages,
     BuildingPdf,
     ValidatingPdf,
@@ -23,13 +26,18 @@ pub enum JobState {
         total_pages: u32,
         bytes: u64,
     },
-    Failed { error: String },
+    Failed {
+        error: String,
+    },
     Cancelled,
 }
 
 impl JobState {
     pub fn is_terminal(&self) -> bool {
-        matches!(self, Self::Completed { .. } | Self::Failed { .. } | Self::Cancelled)
+        matches!(
+            self,
+            Self::Completed { .. } | Self::Failed { .. } | Self::Cancelled
+        )
     }
 
     pub fn description(&self) -> &'static str {
@@ -137,10 +145,7 @@ impl JobManifest {
 
         // Write atomically via a temporary file in the same directory
         let parent = path.parent().unwrap_or_else(|| Path::new("."));
-        let temp_path = parent.join(format!(
-            ".tmp_manifest_{}.json",
-            uuid_simple()
-        ));
+        let temp_path = parent.join(format!(".tmp_manifest_{}.json", uuid_simple()));
 
         std::fs::write(&temp_path, serialized.as_bytes()).map_err(|e| {
             DocDownloaderError::FileSystemError {
@@ -161,19 +166,17 @@ impl JobManifest {
     }
 
     pub fn load_from_file(path: &Path) -> Result<Self, DocDownloaderError> {
-        let content = std::fs::read_to_string(path).map_err(|e| {
-            DocDownloaderError::FileSystemError {
+        let content =
+            std::fs::read_to_string(path).map_err(|e| DocDownloaderError::FileSystemError {
                 path: path.to_path_buf(),
                 reason: format!("Failed to read job manifest: {e}"),
-            }
-        })?;
+            })?;
 
-        let manifest: Self = serde_json::from_str(&content).map_err(|e| {
-            DocDownloaderError::InvalidMetadata {
+        let manifest: Self =
+            serde_json::from_str(&content).map_err(|e| DocDownloaderError::InvalidMetadata {
                 id: path.display().to_string(),
                 reason: format!("Corrupted job manifest JSON: {e}"),
-            }
-        })?;
+            })?;
 
         Ok(manifest)
     }

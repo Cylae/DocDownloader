@@ -34,10 +34,7 @@ pub enum DocDownloaderError {
     },
 
     /// A downloaded page asset failed validation (e.g. invalid signature, corrupt image, 0 bytes).
-    PageCorrupt {
-        page_index: u32,
-        reason: String,
-    },
+    PageCorrupt { page_index: u32, reason: String },
 
     /// The server throttled requests (HTTP 429).
     RateLimited {
@@ -84,9 +81,7 @@ impl DocDownloaderError {
             Self::InvalidMetadata { .. }
             | Self::ManifestUnavailable { .. }
             | Self::PageListInvalid { .. } => 4,
-            Self::NetworkTimeout { .. }
-            | Self::TlsError { .. }
-            | Self::RateLimited { .. } => 4,
+            Self::NetworkTimeout { .. } | Self::TlsError { .. } | Self::RateLimited { .. } => 4,
             Self::PageUnavailable { .. } => 4,
             Self::RedirectRejected { .. } => 1,
             Self::PageCorrupt { .. } | Self::PdfValidationFailed { .. } => 5,
@@ -111,18 +106,28 @@ impl fmt::Display for DocDownloaderError {
                 write!(f, "Publication '{id}' not found: {reason}")
             }
             Self::AccessRestricted { id, reason } => {
-                write!(f, "ACCESS_RESTRICTED: Publication '{id}' is restricted ({reason})")
+                write!(
+                    f,
+                    "ACCESS_RESTRICTED: Publication '{id}' is restricted ({reason})"
+                )
             }
             Self::InvalidMetadata { id, reason } => {
                 write!(f, "Invalid metadata for publication '{id}': {reason}")
             }
             Self::ManifestUnavailable { id, reason } => {
-                write!(f, "Failed to load manifest for publication '{id}': {reason}")
+                write!(
+                    f,
+                    "Failed to load manifest for publication '{id}': {reason}"
+                )
             }
             Self::PageListInvalid { id, reason } => {
                 write!(f, "Invalid page list for publication '{id}': {reason}")
             }
-            Self::PageUnavailable { page_index, reason, status } => {
+            Self::PageUnavailable {
+                page_index,
+                reason,
+                status,
+            } => {
                 if let Some(code) = status {
                     write!(f, "Page {page_index} unavailable (HTTP {code}): {reason}")
                 } else {
@@ -132,7 +137,10 @@ impl fmt::Display for DocDownloaderError {
             Self::PageCorrupt { page_index, reason } => {
                 write!(f, "Page {page_index} corrupt: {reason}")
             }
-            Self::RateLimited { retry_after_secs, reason } => {
+            Self::RateLimited {
+                retry_after_secs,
+                reason,
+            } => {
                 if let Some(secs) = retry_after_secs {
                     write!(f, "Rate limited by server (retry after {secs}s): {reason}")
                 } else {
@@ -140,16 +148,26 @@ impl fmt::Display for DocDownloaderError {
                 }
             }
             Self::NetworkTimeout { url, elapsed_secs } => {
-                write!(f, "Network request to '{url}' timed out after {elapsed_secs}s")
+                write!(
+                    f,
+                    "Network request to '{url}' timed out after {elapsed_secs}s"
+                )
             }
             Self::TlsError { host, reason } => {
                 write!(f, "TLS error connecting to '{host}': {reason}")
             }
             Self::RedirectRejected { url, reason } => {
-                write!(f, "Security policy rejected URL/redirect to '{url}': {reason}")
+                write!(
+                    f,
+                    "Security policy rejected URL/redirect to '{url}': {reason}"
+                )
             }
             Self::OutputExists { path } => {
-                write!(f, "Output file already exists: {} (use --force to overwrite)", path.display())
+                write!(
+                    f,
+                    "Output file already exists: {} (use --force to overwrite)",
+                    path.display()
+                )
             }
             Self::FileSystemError { path, reason } => {
                 write!(f, "Filesystem error at '{}': {reason}", path.display())

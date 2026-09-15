@@ -1,7 +1,5 @@
-use std::time::{SystemTime, UNIX_EPOCH};
 use regex::Regex;
-use reqwest::header::{HeaderMap, HeaderValue};
-use url::Url;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::core::document::{AssetCandidate, AssetType, PageDescriptor, PageGeometry, Publication};
 use crate::core::error::DocDownloaderError;
@@ -25,9 +23,15 @@ pub async fn resolve_via_book_api(
         .unwrap_or(0);
 
     let headers = vec![
-        ("X-Calameo-Build-ID".to_string(), CALAMEO_BUILD_ID.to_string()),
+        (
+            "X-Calameo-Build-ID".to_string(),
+            CALAMEO_BUILD_ID.to_string(),
+        ),
         ("X-Calameo-Timestamp".to_string(), now.to_string()),
-        ("Referer".to_string(), format!("https://v.calameo.com/?bkcode={publication_id}")),
+        (
+            "Referer".to_string(),
+            format!("https://v.calameo.com/?bkcode={publication_id}"),
+        ),
     ];
 
     let resp = match client.get_with_retry(&url, Some(&headers)).await {
@@ -48,17 +52,19 @@ pub async fn resolve_via_book_api(
     };
 
     let sig = CalameoSignature::from_headers(resp.headers());
-    let body_bytes = resp.bytes().await.map_err(|e| DocDownloaderError::NetworkTimeout {
-        url: url.clone(),
-        elapsed_secs: 45,
-    })?;
+    let body_bytes = resp
+        .bytes()
+        .await
+        .map_err(|_e| DocDownloaderError::NetworkTimeout {
+            url: url.clone(),
+            elapsed_secs: 45,
+        })?;
 
-    let parsed: CalameoResponse = serde_json::from_slice(&body_bytes).map_err(|e| {
-        DocDownloaderError::InvalidMetadata {
+    let parsed: CalameoResponse =
+        serde_json::from_slice(&body_bytes).map_err(|e| DocDownloaderError::InvalidMetadata {
             id: publication_id.to_string(),
             reason: format!("Failed to parse Calaméo book JSON: {e}"),
-        }
-    })?;
+        })?;
 
     if parsed.status != "ok" {
         // Check for known error codes
@@ -81,10 +87,12 @@ pub async fn resolve_via_book_api(
         });
     }
 
-    let content = parsed.content.ok_or_else(|| DocDownloaderError::InvalidMetadata {
-        id: publication_id.to_string(),
-        reason: "Calaméo API response missing content block".to_string(),
-    })?;
+    let content = parsed
+        .content
+        .ok_or_else(|| DocDownloaderError::InvalidMetadata {
+            id: publication_id.to_string(),
+            reason: "Calaméo API response missing content block".to_string(),
+        })?;
 
     // Check if mode is private or subscriber-only
     if content.mode == "private" {
@@ -93,7 +101,11 @@ pub async fn resolve_via_book_api(
             reason: "Publication mode is set to private".to_string(),
         });
     }
-    if let Some(sub) = &content.features.as_ref().and_then(|f| f.subscribers.as_ref()) {
+    if let Some(sub) = &content
+        .features
+        .as_ref()
+        .and_then(|f| f.subscribers.as_ref())
+    {
         if sub.enabled == Some(true) && sub.access == Some(false) {
             return Err(DocDownloaderError::AccessRestricted {
                 id: publication_id.to_string(),
@@ -102,10 +114,12 @@ pub async fn resolve_via_book_api(
         }
     }
 
-    let doc = content.document.ok_or_else(|| DocDownloaderError::InvalidMetadata {
-        id: publication_id.to_string(),
-        reason: "Missing document specifications in Calaméo metadata".to_string(),
-    })?;
+    let doc = content
+        .document
+        .ok_or_else(|| DocDownloaderError::InvalidMetadata {
+            id: publication_id.to_string(),
+            reason: "Missing document specifications in Calaméo metadata".to_string(),
+        })?;
 
     let page_count = doc.pages.unwrap_or(0);
     if page_count == 0 {
@@ -236,12 +250,12 @@ pub async fn resolve_via_book_api(
         pages,
     };
 
-    publication.validate_completeness().map_err(|e| {
-        DocDownloaderError::PageListInvalid {
+    publication
+        .validate_completeness()
+        .map_err(|e| DocDownloaderError::PageListInvalid {
             id: publication_id.to_string(),
             reason: e,
-        }
-    })?;
+        })?;
 
     Ok(publication)
 }
@@ -254,10 +268,13 @@ pub async fn resolve_via_html_fallback(
 ) -> Result<Publication, DocDownloaderError> {
     let reader_url = format!("https://www.calameo.com/read/{publication_id}");
     let resp = client.get_with_retry(&reader_url, None).await?;
-    let body_bytes = resp.bytes().await.map_err(|e| DocDownloaderError::NetworkTimeout {
-        url: reader_url.clone(),
-        elapsed_secs: 45,
-    })?;
+    let body_bytes = resp
+        .bytes()
+        .await
+        .map_err(|_e| DocDownloaderError::NetworkTimeout {
+            url: reader_url.clone(),
+            elapsed_secs: 45,
+        })?;
     let html = String::from_utf8_lossy(&body_bytes);
 
     // Check for private / access restricted indications in HTML
@@ -269,7 +286,8 @@ pub async fn resolve_via_html_fallback(
     }
 
     // Extract title: <meta property="og:title" content="..."> or <title>...</title>
-    let title_re = Regex::new(r#"<meta\s+property=["']og:title["']\s+content=["'](.*?)["']"#).unwrap();
+    let title_re =
+        Regex::new(r#"<meta\s+property=["']og:title["']\s+content=["'](.*?)["']"#).unwrap();
     let title = title_re
         .captures(&html)
         .and_then(|c| c.get(1))
@@ -293,9 +311,15 @@ pub async fn resolve_via_html_fallback(
 
     // Extract asset key and token from image_src:
     // <link rel="image_src" href="https://ps.calameoassets.com/([0-9a-fA-F-]+)/p1.jpg(\?_token_=.*?)?"
-    let img_re = Regex::new(r#"https://ps\.calameoassets\.com/([a-zA-Z0-9_-]+)/p1\.jpg(?:\?_token_=([^\s"'>]+))?"#).unwrap();
+    let img_re = Regex::new(
+        r#"https://ps\.calameoassets\.com/([a-zA-Z0-9_-]+)/p1\.jpg(?:\?_token_=([^\s"'>]+))?"#,
+    )
+    .unwrap();
     let (key, token_opt) = if let Some(caps) = img_re.captures(&html) {
-        let key = caps.get(1).map(|m| m.as_str().to_string()).unwrap_or_else(|| publication_id.to_string());
+        let key = caps
+            .get(1)
+            .map(|m| m.as_str().to_string())
+            .unwrap_or_else(|| publication_id.to_string());
         let token = caps.get(2).map(|m| m.as_str().to_string());
         (key, token)
     } else {
@@ -347,12 +371,12 @@ pub async fn resolve_via_html_fallback(
         pages,
     };
 
-    pub_doc.validate_completeness().map_err(|e| {
-        DocDownloaderError::PageListInvalid {
+    pub_doc
+        .validate_completeness()
+        .map_err(|e| DocDownloaderError::PageListInvalid {
             id: publication_id.to_string(),
             reason: e,
-        }
-    })?;
+        })?;
 
     Ok(pub_doc)
 }

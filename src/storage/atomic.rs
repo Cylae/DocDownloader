@@ -52,10 +52,11 @@ impl AtomicFileWriter {
     /// Appends bytes to the in-progress temporary file.
     pub fn write_all(&mut self, data: &[u8]) -> Result<(), DocDownloaderError> {
         if let Some(ref mut f) = self.file {
-            f.write_all(data).map_err(|e| DocDownloaderError::FileSystemError {
-                path: self.temp_path.clone(),
-                reason: format!("Write failure on temporary file: {e}"),
-            })?;
+            f.write_all(data)
+                .map_err(|e| DocDownloaderError::FileSystemError {
+                    path: self.temp_path.clone(),
+                    reason: format!("Write failure on temporary file: {e}"),
+                })?;
             Ok(())
         } else {
             Err(DocDownloaderError::InternalInvariantViolation {
@@ -83,7 +84,10 @@ impl AtomicFileWriter {
             let _ = std::fs::remove_file(&self.temp_path);
             DocDownloaderError::FileSystemError {
                 path: self.target_path.clone(),
-                reason: format!("Failed atomic rename from {:?} to {:?}: {e}", self.temp_path, self.target_path),
+                reason: format!(
+                    "Failed atomic rename from {:?} to {:?}: {e}",
+                    self.temp_path, self.target_path
+                ),
             }
         })?;
 

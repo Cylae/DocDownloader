@@ -1,10 +1,9 @@
 use clap::Parser;
-use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::watch;
 use url::Url;
 
-use docdownloader::cli::args::{CacheAction, CacheArgs, Cli, Commands, DownloadArgs, InspectArgs, ServeArgs};
+use docdownloader::cli::args::{CacheAction, Cli, Commands, DownloadArgs};
 use docdownloader::cli::progress::CliProgressReporter;
 use docdownloader::core::engine::DownloadEngine;
 use docdownloader::core::error::DocDownloaderError;
@@ -120,7 +119,9 @@ async fn run_cli(cli: Cli, cancel_rx: watch::Receiver<bool>) -> Result<(), DocDo
             if let Some(ref direct_pdf) = pub_info.direct_pdf_url {
                 println!("Direct PDF Available: Yes ({direct_pdf})");
             } else {
-                println!("Direct PDF Available: No (Reconstructing via high-resolution page assets)");
+                println!(
+                    "Direct PDF Available: No (Reconstructing via high-resolution page assets)"
+                );
             }
             if let Some(ref thumb) = pub_info.thumbnail_url {
                 println!("Thumbnail: {thumb}");

@@ -44,12 +44,17 @@ impl RetryPolicy {
     }
 
     /// Calculates backoff delay for the given retry attempt (1-based), incorporating jitter.
-    pub fn delay_for_attempt(&self, attempt: u32, server_retry_after: Option<Duration>) -> Duration {
+    pub fn delay_for_attempt(
+        &self,
+        attempt: u32,
+        server_retry_after: Option<Duration>,
+    ) -> Duration {
         if let Some(delay) = server_retry_after {
             return delay.min(self.max_delay);
         }
 
-        let base_millis = self.initial_delay.as_millis() as f64 * (2.0_f64.powi((attempt - 1).min(6) as i32));
+        let base_millis =
+            self.initial_delay.as_millis() as f64 * (2.0_f64.powi((attempt - 1).min(6) as i32));
         let bounded_millis = base_millis.min(self.max_delay.as_millis() as f64);
 
         // Deterministic pseudo-jitter based on attempt to avoid thread_rng dependencies

@@ -1,9 +1,7 @@
-use std::path::Path;
-use std::sync::Arc;
-use std::time::Duration;
 use reqwest::header::{HeaderMap, HeaderValue, RETRY_AFTER, USER_AGENT};
 use sha2::{Digest, Sha256};
-use tokio::io::AsyncWriteExt;
+use std::sync::Arc;
+use std::time::Duration;
 use url::Url;
 
 use crate::core::error::DocDownloaderError;
@@ -12,7 +10,11 @@ use crate::network::security::validate_url_security;
 use crate::storage::atomic::AtomicFileWriter;
 
 /// Default User-Agent string used for transparent identification.
-pub const DEFAULT_USER_AGENT: &str = concat!("DocDownloader/", env!("CARGO_PKG_VERSION"), " (+https://github.com/Cylae/DocDownloader)");
+pub const DEFAULT_USER_AGENT: &str = concat!(
+    "DocDownloader/",
+    env!("CARGO_PKG_VERSION"),
+    " (+https://github.com/Cylae/DocDownloader)"
+);
 
 /// Maximum size allowed for a single page download to guard against memory or disk exhaustion (e.g. 50 MB).
 pub const MAX_PAGE_BYTE_LIMIT: u64 = 50 * 1024 * 1024;
@@ -25,12 +27,12 @@ pub struct HttpClient {
 }
 
 impl HttpClient {
-    pub fn new(connect_timeout: Duration, request_timeout: Duration) -> Result<Self, DocDownloaderError> {
+    pub fn new(
+        connect_timeout: Duration,
+        request_timeout: Duration,
+    ) -> Result<Self, DocDownloaderError> {
         let mut default_headers = HeaderMap::new();
-        default_headers.insert(
-            USER_AGENT,
-            HeaderValue::from_static(DEFAULT_USER_AGENT),
-        );
+        default_headers.insert(USER_AGENT, HeaderValue::from_static(DEFAULT_USER_AGENT));
 
         let redirect_policy = reqwest::redirect::Policy::custom(|attempt| {
             if attempt.previous().len() >= 5 {
@@ -129,7 +131,9 @@ impl HttpClient {
                         });
                     }
 
-                    if RetryPolicy::is_status_retryable(status.as_u16()) && attempt <= self.retry_policy.max_retries {
+                    if RetryPolicy::is_status_retryable(status.as_u16())
+                        && attempt <= self.retry_policy.max_retries
+                    {
                         let delay = self.retry_policy.delay_for_attempt(attempt, None);
                         tokio::time::sleep(delay).await;
                         continue;
@@ -208,12 +212,14 @@ impl HttpClient {
         let mut hasher = Sha256::new();
         let mut total_bytes: u64 = 0;
 
-        while let Some(chunk) = resp.chunk().await.map_err(|e| {
-            DocDownloaderError::FileSystemError {
-                path: atomic_writer.temp_path().to_path_buf(),
-                reason: format!("Failed to read stream chunk: {e}"),
-            }
-        })? {
+        while let Some(chunk) =
+            resp.chunk()
+                .await
+                .map_err(|e| DocDownloaderError::FileSystemError {
+                    path: atomic_writer.temp_path().to_path_buf(),
+                    reason: format!("Failed to read stream chunk: {e}"),
+                })?
+        {
             total_bytes += chunk.len() as u64;
             if total_bytes > max_bytes {
                 return Err(DocDownloaderError::PageCorrupt {

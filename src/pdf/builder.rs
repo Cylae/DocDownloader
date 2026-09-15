@@ -1,6 +1,6 @@
-use std::path::{Path, PathBuf};
 use lopdf::content::{Content, Operation};
-use lopdf::{Dictionary, Document, Object, ObjectId, Stream};
+use lopdf::{Dictionary, Document, Object, Stream};
+use std::path::{Path, PathBuf};
 
 use crate::core::document::Publication;
 use crate::core::error::DocDownloaderError;
@@ -47,12 +47,11 @@ impl PdfBuilder {
             let asset_path = cache_base.join(&page.relative_path);
             let metadata = inspect_and_validate_asset(&asset_path, page.page_index)?;
 
-            let raw_bytes = std::fs::read(&asset_path).map_err(|e| {
-                DocDownloaderError::FileSystemError {
+            let raw_bytes =
+                std::fs::read(&asset_path).map_err(|e| DocDownloaderError::FileSystemError {
                     path: asset_path.clone(),
                     reason: format!("Failed to read cached page asset: {e}"),
-                }
-            })?;
+                })?;
 
             let (w, h) = (metadata.width, metadata.height);
 
@@ -115,11 +114,15 @@ impl PdfBuilder {
                 ],
             };
 
-            let encoded_content = content.encode().map_err(|e| {
-                DocDownloaderError::PdfGenerationFailed {
-                    reason: format!("Failed to encode content stream for page {}: {e}", page.page_index),
-                }
-            })?;
+            let encoded_content =
+                content
+                    .encode()
+                    .map_err(|e| DocDownloaderError::PdfGenerationFailed {
+                        reason: format!(
+                            "Failed to encode content stream for page {}: {e}",
+                            page.page_index
+                        ),
+                    })?;
 
             let content_id = doc.add_object(Stream::new(Dictionary::new(), encoded_content));
 
@@ -187,11 +190,10 @@ impl PdfBuilder {
 
         // 7. Atomic Write to Disk
         let mut atomic_writer = AtomicFileWriter::new(target_pdf_path)?;
-        doc.save_to(&mut atomic_writer).map_err(|e| {
-            DocDownloaderError::PdfGenerationFailed {
+        doc.save_to(&mut atomic_writer)
+            .map_err(|e| DocDownloaderError::PdfGenerationFailed {
                 reason: format!("Failed to serialize PDF: {e}"),
-            }
-        })?;
+            })?;
 
         // 8. Validate Generated Document Structure before committing
         validate_pdf_document(atomic_writer.temp_path(), pages.len() as u32)?;
@@ -205,7 +207,7 @@ impl PdfBuilder {
 impl std::io::Write for AtomicFileWriter {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         self.write_all(buf)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+            .map_err(|e| std::io::Error::other(e.to_string()))?;
         Ok(buf.len())
     }
 

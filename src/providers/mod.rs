@@ -55,7 +55,10 @@ impl ProviderRegistry {
     }
 
     pub fn find_provider(&self, url: &Url) -> Option<&dyn PublicationProvider> {
-        self.providers.iter().find(|p| p.can_handle(url)).map(|b| b.as_ref())
+        self.providers
+            .iter()
+            .find(|p| p.can_handle(url))
+            .map(|b| b.as_ref())
     }
 
     pub async fn resolve(
@@ -63,11 +66,11 @@ impl ProviderRegistry {
         client: &HttpClient,
         url: &Url,
     ) -> Result<Publication, DocDownloaderError> {
-        let provider = self.find_provider(url).ok_or_else(|| {
-            DocDownloaderError::UnsupportedProvider {
-                url: url.to_string(),
-            }
-        })?;
+        let provider =
+            self.find_provider(url)
+                .ok_or_else(|| DocDownloaderError::UnsupportedProvider {
+                    url: url.to_string(),
+                })?;
 
         provider.resolve(client, url).await
     }

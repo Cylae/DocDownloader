@@ -88,7 +88,8 @@ impl PublicationProvider for CalameoProvider {
 
         Err(DocDownloaderError::InvalidUrl {
             url: url.to_string(),
-            reason: "Could not extract 21-hex character publication ID from Calaméo URL".to_string(),
+            reason: "Could not extract 21-hex character publication ID from Calaméo URL"
+                .to_string(),
         })
     }
 
@@ -130,15 +131,26 @@ mod tests {
 
         let read_url = Url::parse("https://www.calameo.com/read/0061133461a5012e8961a").unwrap();
         assert!(provider.can_handle(&read_url));
-        assert_eq!(provider.extract_id(&read_url).unwrap(), "0061133461a5012e8961a");
+        assert_eq!(
+            provider.extract_id(&read_url).unwrap(),
+            "0061133461a5012e8961a"
+        );
 
-        let books_url = Url::parse("https://en.calameo.com/books/0061133461A5012E8961A?page=2").unwrap();
+        let books_url =
+            Url::parse("https://en.calameo.com/books/0061133461A5012E8961A?page=2").unwrap();
         assert!(provider.can_handle(&books_url));
-        assert_eq!(provider.extract_id(&books_url).unwrap(), "0061133461a5012e8961a");
+        assert_eq!(
+            provider.extract_id(&books_url).unwrap(),
+            "0061133461a5012e8961a"
+        );
 
-        let viewer_url = Url::parse("https://v.calameo.com/?bkcode=0061133461a5012e8961a&authid=").unwrap();
+        let viewer_url =
+            Url::parse("https://v.calameo.com/?bkcode=0061133461a5012e8961a&authid=").unwrap();
         assert!(provider.can_handle(&viewer_url));
-        assert_eq!(provider.extract_id(&viewer_url).unwrap(), "0061133461a5012e8961a");
+        assert_eq!(
+            provider.extract_id(&viewer_url).unwrap(),
+            "0061133461a5012e8961a"
+        );
 
         let other_url = Url::parse("https://example.com/read/0061133461a5012e8961a").unwrap();
         assert!(!provider.can_handle(&other_url));

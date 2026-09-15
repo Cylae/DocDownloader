@@ -1,8 +1,8 @@
-use std::time::Instant;
 use docdownloader::core::document::AssetType;
 use docdownloader::core::job::CompletedPageAsset;
 use docdownloader::core::Publication;
 use docdownloader::pdf::PdfBuilder;
+use std::time::Instant;
 
 fn main() {
     println!("=== DocDownloader Synthetic Benchmarks ===");
@@ -27,7 +27,8 @@ fn main() {
             let page_filename = format!("page_{i:04}.jpg");
             let page_path = pages_dir.join(&page_filename);
             if !page_path.exists() {
-                std::fs::copy(&sample_jpeg_path, &page_path).expect("Failed to copy synthetic page");
+                std::fs::copy(&sample_jpeg_path, &page_path)
+                    .expect("Failed to copy synthetic page");
             }
             completed_pages.push(CompletedPageAsset {
                 page_index: i as u32,

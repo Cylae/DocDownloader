@@ -1,6 +1,6 @@
-use std::path::Path;
 use crate::core::document::{AssetType, PageGeometry};
 use crate::core::error::DocDownloaderError;
+use std::path::Path;
 
 /// Validated image metadata extracted from file header/stream.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -45,7 +45,8 @@ pub fn inspect_and_validate_asset(
         {
             return Err(DocDownloaderError::PageCorrupt {
                 page_index,
-                reason: "Downloaded asset is an HTML/JSON error document disguised as an image".to_string(),
+                reason: "Downloaded asset is an HTML/JSON error document disguised as an image"
+                    .to_string(),
             });
         }
     }
@@ -84,11 +85,9 @@ pub fn inspect_and_validate_asset(
 
     // 2. PNG: 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A
     if bytes.len() >= 8 && bytes[0..8] == [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A] {
-        let img = image::load_from_memory(&bytes).map_err(|e| {
-            DocDownloaderError::PageCorrupt {
-                page_index,
-                reason: format!("Corrupted PNG image: {e}"),
-            }
+        let img = image::load_from_memory(&bytes).map_err(|e| DocDownloaderError::PageCorrupt {
+            page_index,
+            reason: format!("Corrupted PNG image: {e}"),
         })?;
         let (w, h) = (img.width(), img.height());
         validate_dimensions(w, h, page_index)?;
@@ -102,11 +101,9 @@ pub fn inspect_and_validate_asset(
 
     // 3. WebP: RIFF....WEBP
     if bytes.len() >= 12 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WEBP" {
-        let img = image::load_from_memory(&bytes).map_err(|e| {
-            DocDownloaderError::PageCorrupt {
-                page_index,
-                reason: format!("Corrupted WebP image: {e}"),
-            }
+        let img = image::load_from_memory(&bytes).map_err(|e| DocDownloaderError::PageCorrupt {
+            page_index,
+            reason: format!("Corrupted WebP image: {e}"),
         })?;
         let (w, h) = (img.width(), img.height());
         validate_dimensions(w, h, page_index)?;
@@ -149,7 +146,9 @@ fn validate_dimensions(width: u32, height: u32, page_index: u32) -> Result<(), D
     if width <= 2 && height <= 2 {
         return Err(DocDownloaderError::PageCorrupt {
             page_index,
-            reason: format!("Detected placeholder tracking pixel ({width}x{height}) instead of valid page"),
+            reason: format!(
+                "Detected placeholder tracking pixel ({width}x{height}) instead of valid page"
+            ),
         });
     }
 
@@ -185,13 +184,14 @@ fn parse_jpeg_dimensions(data: &[u8]) -> Option<(u32, u32)> {
         }
 
         // SOF markers contain: marker(2) + len(2) + precision(1) + height(2) + width(2)
-        if matches!(marker, 0xC0..=0xC3 | 0xC5..=0xC7 | 0xC9..=0xCB | 0xCD..=0xCF) {
-            if length >= 7 && i + 8 < data.len() {
-                let height = u16::from_be_bytes([data[i + 5], data[i + 6]]) as u32;
-                let width = u16::from_be_bytes([data[i + 7], data[i + 8]]) as u32;
-                if width > 0 && height > 0 {
-                    return Some((width, height));
-                }
+        if matches!(marker, 0xC0..=0xC3 | 0xC5..=0xC7 | 0xC9..=0xCB | 0xCD..=0xCF)
+            && length >= 7
+            && i + 8 < data.len()
+        {
+            let height = u16::from_be_bytes([data[i + 5], data[i + 6]]) as u32;
+            let width = u16::from_be_bytes([data[i + 7], data[i + 8]]) as u32;
+            if width > 0 && height > 0 {
+                return Some((width, height));
             }
         }
 

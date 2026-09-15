@@ -72,7 +72,11 @@ impl ProgressListener for CliProgressReporter {
                     println!("Validating PDF...");
                 }
             }
-            JobState::Completed { output_path, total_pages, bytes } => {
+            JobState::Completed {
+                output_path,
+                total_pages,
+                bytes,
+            } => {
                 if let Some(ref pb) = self.progress_bar {
                     pb.finish_and_clear();
                 }
@@ -112,7 +116,7 @@ impl ProgressListener for CliProgressReporter {
         } else if !self.quiet {
             // Log every 10% or on last page when running non-interactive
             let interval = (total_pages / 10).max(1);
-            if current % interval == 0 || current == total_pages {
+            if current.is_multiple_of(interval) || current == total_pages {
                 let percent = (current as f64 / total_pages as f64) * 100.0;
                 println!("Progress: {current}/{total_pages} ({percent:.0}%)");
             }

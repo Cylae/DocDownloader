@@ -26,7 +26,14 @@ pub trait ProgressListener: Send + Sync {
 pub struct NoopProgressListener;
 impl ProgressListener for NoopProgressListener {
     fn on_state_change(&self, _state: &JobState) {}
-    fn on_page_completed(&self, _page_index: u32, _total_pages: u32, _bytes: u64, _from_cache: bool) {}
+    fn on_page_completed(
+        &self,
+        _page_index: u32,
+        _total_pages: u32,
+        _bytes: u64,
+        _from_cache: bool,
+    ) {
+    }
     fn on_log_message(&self, _message: &str) {}
 }
 
@@ -80,12 +87,12 @@ impl DownloadEngine {
         let publication = self.registry.resolve(&self.client, url).await?;
 
         listener.on_state_change(&JobState::ResolvingMetadata);
-        publication.validate_completeness().map_err(|e| {
-            DocDownloaderError::PageListInvalid {
+        publication
+            .validate_completeness()
+            .map_err(|e| DocDownloaderError::PageListInvalid {
                 id: publication.publication_id.clone(),
                 reason: e,
-            }
-        })?;
+            })?;
 
         // Determine output path
         let final_pdf_path = match output_arg {
@@ -105,18 +112,23 @@ impl DownloadEngine {
             });
         }
 
-        let pub_dir = self.cache.publication_dir(&publication.provider, &publication.publication_id);
+        let pub_dir = self
+            .cache
+            .publication_dir(&publication.provider, &publication.publication_id);
         std::fs::create_dir_all(&pub_dir).map_err(|e| DocDownloaderError::FileSystemError {
             path: pub_dir.clone(),
             reason: format!("Failed to create publication cache directory: {e}"),
         })?;
 
-        let manifest_file = self.cache.manifest_path(&publication.provider, &publication.publication_id);
+        let manifest_file = self
+            .cache
+            .manifest_path(&publication.provider, &publication.publication_id);
 
         // Load or create job manifest
         let mut manifest = match JobManifest::load_from_file(&manifest_file) {
             Ok(existing) if existing.expected_pages == publication.page_count => {
-                listener.on_log_message("Found existing job checkpoint. Validating cache integrity...");
+                listener
+                    .on_log_message("Found existing job checkpoint. Validating cache integrity...");
                 existing
             }
             _ => JobManifest::new(
@@ -136,7 +148,12 @@ impl DownloadEngine {
                 if let Ok(meta) = inspect_and_validate_asset(&asset_path, *page_idx) {
                     if meta.width == asset.width && meta.height == asset.height {
                         valid_completed.insert(*page_idx, asset.clone());
-                        listener.on_page_completed(*page_idx, publication.page_count, asset.byte_size, true);
+                        listener.on_page_completed(
+                            *page_idx,
+                            publication.page_count,
+                            asset.byte_size,
+                            true,
+                        );
                     }
                 }
             }
@@ -166,7 +183,7 @@ impl DownloadEngine {
                 let pub_id = publication.publication_id.clone();
                 let sem = semaphore.clone();
                 let is_cancelled = cancelled.clone();
-                let mut task_cancel_rx = cancel_rx.clone();
+                let task_cancel_rx = cancel_rx.clone();
 
                 let task = tokio::spawn(async move {
                     let _permit = sem.acquire().await.map_err(|_| {
@@ -199,11 +216,13 @@ impl DownloadEngine {
                         }
                     }
 
-                    Err(last_err.unwrap_or_else(|| DocDownloaderError::PageUnavailable {
-                        page_index: page_desc.index,
-                        reason: "All candidate sources failed".to_string(),
-                        status: None,
-                    }))
+                    Err(
+                        last_err.unwrap_or_else(|| DocDownloaderError::PageUnavailable {
+                            page_index: page_desc.index,
+                            reason: "All candidate sources failed".to_string(),
+                            status: None,
+                        }),
+                    )
                 });
 
                 tasks.push((page_idx, task));
@@ -273,7 +292,8 @@ impl DownloadEngine {
         // Build PDF
         listener.on_state_change(&JobState::BuildingPdf);
         let builder = PdfBuilder::new(&publication);
-        let ordered_pages: Vec<CompletedPageAsset> = manifest.completed_pages.values().cloned().collect();
+        let ordered_pages: Vec<CompletedPageAsset> =
+            manifest.completed_pages.values().cloned().collect();
 
         let generated_pdf = builder.build(&final_pdf_path, &pub_dir, &ordered_pages)?;
 
@@ -318,7 +338,10 @@ async fn download_single_candidate(
     let meta = inspect_and_validate_asset(writer.temp_path(), page_desc.index)?;
     let final_path = writer.commit()?;
 
-    let relative_path = format!("pages/{}", final_path.file_name().unwrap().to_string_lossy());
+    let relative_path = format!(
+        "pages/{}",
+        final_path.file_name().unwrap().to_string_lossy()
+    );
 
     Ok(CompletedPageAsset {
         page_index: page_desc.index,

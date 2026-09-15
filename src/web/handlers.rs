@@ -1,7 +1,7 @@
 use axum::extract::{Path as AxumPath, State};
 use axum::http::StatusCode;
 use axum::response::sse::{Event, KeepAlive, Sse};
-use axum::response::{IntoResponse, Response};
+use axum::response::Response;
 use axum::Json;
 use futures_util::stream::Stream;
 use serde::{Deserialize, Serialize};
@@ -76,7 +76,11 @@ impl ProgressListener for WebProgressListener {
     fn on_state_change(&self, job_state: &JobState) {
         let (status, stage, error) = match job_state {
             JobState::Completed { .. } => ("Completed".to_string(), "Completed".to_string(), None),
-            JobState::Failed { error } => ("Failed".to_string(), "Failed".to_string(), Some(error.clone())),
+            JobState::Failed { error } => (
+                "Failed".to_string(),
+                "Failed".to_string(),
+                Some(error.clone()),
+            ),
             JobState::Cancelled => ("Cancelled".to_string(), "Cancelled".to_string(), None),
             s => ("Running".to_string(), s.description().to_string(), None),
         };
@@ -135,9 +139,8 @@ pub async fn inspect_handler(
     State(state): State<AppState>,
     Json(payload): Json<InspectRequest>,
 ) -> Result<Json<InspectResponse>, (StatusCode, String)> {
-    let parsed_url = Url::parse(&payload.url).map_err(|e| {
-        (StatusCode::BAD_REQUEST, format!("Invalid URL: {e}"))
-    })?;
+    let parsed_url = Url::parse(&payload.url)
+        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid URL: {e}")))?;
 
     let publication = state
         .engine
@@ -158,11 +161,16 @@ pub async fn download_handler(
     State(state): State<AppState>,
     Json(payload): Json<DownloadRequest>,
 ) -> Result<Json<DownloadResponse>, (StatusCode, String)> {
-    let parsed_url = Url::parse(&payload.url).map_err(|e| {
-        (StatusCode::BAD_REQUEST, format!("Invalid URL: {e}"))
-    })?;
+    let parsed_url = Url::parse(&payload.url)
+        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid URL: {e}")))?;
 
-    let job_id = format!("job_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis());
+    let job_id = format!(
+        "job_{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis()
+    );
     let (tx, _rx) = broadcast::channel(100);
     let (cancel_tx, cancel_rx) = watch::channel(false);
 
@@ -240,9 +248,9 @@ pub async fn sse_handler(
     AxumPath(job_id): AxumPath<String>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, (StatusCode, String)> {
     let lock = state.jobs.lock().await;
-    let job = lock.get(&job_id).ok_or_else(|| {
-        (StatusCode::NOT_FOUND, "Job not found".to_string())
-    })?;
+    let job = lock
+        .get(&job_id)
+        .ok_or_else(|| (StatusCode::NOT_FOUND, "Job not found".to_string()))?;
 
     let mut rx = job.tx.subscribe();
     let stream = async_stream::stream! {
@@ -259,16 +267,22 @@ pub async fn file_handler(
     AxumPath(job_id): AxumPath<String>,
 ) -> Result<Response, (StatusCode, String)> {
     let lock = state.jobs.lock().await;
-    let job = lock.get(&job_id).ok_or_else(|| {
-        (StatusCode::NOT_FOUND, "Job not found".to_string())
-    })?;
+    let job = lock
+        .get(&job_id)
+        .ok_or_else(|| (StatusCode::NOT_FOUND, "Job not found".to_string()))?;
 
     let path = job.output_path.as_ref().ok_or_else(|| {
-        (StatusCode::BAD_REQUEST, "Job has no completed output file".to_string())
+        (
+            StatusCode::BAD_REQUEST,
+            "Job has no completed output file".to_string(),
+        )
     })?;
 
     let bytes = std::fs::read(path).map_err(|e| {
-        (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to read file: {e}"))
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to read file: {e}"),
+        )
     })?;
 
     let filename = path
@@ -293,9 +307,9 @@ pub async fn cancel_handler(
     AxumPath(job_id): AxumPath<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let mut lock = state.jobs.lock().await;
-    let job = lock.get_mut(&job_id).ok_or_else(|| {
-        (StatusCode::NOT_FOUND, "Job not found".to_string())
-    })?;
+    let job = lock
+        .get_mut(&job_id)
+        .ok_or_else(|| (StatusCode::NOT_FOUND, "Job not found".to_string()))?;
 
     let _ = job.cancel_tx.send(true);
     job.status = "Cancelled".to_string();

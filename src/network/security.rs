@@ -178,7 +178,10 @@ mod tests {
         let url = Url::parse("https://www.calameo.com/read/0061133461a5012e8961a").unwrap();
         assert!(validate_url_security(&url).is_ok());
 
-        let url = Url::parse("https://ps.calameoassets.com/211022160601-3b723dd9df70eeb8937f6e31fa1d3668/p1.jpg").unwrap();
+        let url = Url::parse(
+            "https://ps.calameoassets.com/211022160601-3b723dd9df70eeb8937f6e31fa1d3668/p1.jpg",
+        )
+        .unwrap();
         assert!(validate_url_security(&url).is_ok());
     }
 }

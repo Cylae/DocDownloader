@@ -1,5 +1,5 @@
-use std::path::Path;
 use lopdf::Document;
+use std::path::Path;
 
 use crate::core::error::DocDownloaderError;
 
@@ -8,10 +8,11 @@ pub fn validate_pdf_document(
     pdf_path: &Path,
     expected_pages: u32,
 ) -> Result<(), DocDownloaderError> {
-    let metadata = std::fs::metadata(pdf_path).map_err(|e| DocDownloaderError::FileSystemError {
-        path: pdf_path.to_path_buf(),
-        reason: format!("Failed to read generated PDF metadata: {e}"),
-    })?;
+    let metadata =
+        std::fs::metadata(pdf_path).map_err(|e| DocDownloaderError::FileSystemError {
+            path: pdf_path.to_path_buf(),
+            reason: format!("Failed to read generated PDF metadata: {e}"),
+        })?;
 
     if metadata.len() < 100 {
         return Err(DocDownloaderError::PdfValidationFailed {
@@ -40,11 +41,11 @@ pub fn validate_pdf_document(
     // Inspect individual pages
     let pages = doc.get_pages();
     for (page_num, page_id) in pages {
-        let page_dict = doc.get_dictionary(page_id).map_err(|e| {
-            DocDownloaderError::PdfValidationFailed {
-                reason: format!("Page {page_num} missing valid dictionary: {e}"),
-            }
-        })?;
+        let page_dict =
+            doc.get_dictionary(page_id)
+                .map_err(|e| DocDownloaderError::PdfValidationFailed {
+                    reason: format!("Page {page_num} missing valid dictionary: {e}"),
+                })?;
 
         // Validate MediaBox dimensions
         let media_box = page_dict

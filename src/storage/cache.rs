@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use crate::core::error::DocDownloaderError;
 use crate::storage::atomic::AtomicFileWriter;
@@ -18,7 +18,9 @@ impl CacheManager {
     /// Default system cache directory (~/.cache/docdownloader or %LOCALAPPDATA%/DocDownloader/cache).
     pub fn default_dir() -> PathBuf {
         if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
-            PathBuf::from(local_app_data).join("DocDownloader").join("cache")
+            PathBuf::from(local_app_data)
+                .join("DocDownloader")
+                .join("cache")
         } else if let Ok(home) = std::env::var("HOME") {
             PathBuf::from(home).join(".cache").join("docdownloader")
         } else {
@@ -39,7 +41,8 @@ impl CacheManager {
 
     /// Returns path to the job manifest JSON file for the publication.
     pub fn manifest_path(&self, provider: &str, publication_id: &str) -> PathBuf {
-        self.publication_dir(provider, publication_id).join("job.json")
+        self.publication_dir(provider, publication_id)
+            .join("job.json")
     }
 
     /// Returns deterministic path for a specific page asset.
@@ -68,7 +71,11 @@ impl CacheManager {
     }
 
     /// Cleans cache for a specific publication.
-    pub fn clean_publication(&self, provider: &str, publication_id: &str) -> Result<(), DocDownloaderError> {
+    pub fn clean_publication(
+        &self,
+        provider: &str,
+        publication_id: &str,
+    ) -> Result<(), DocDownloaderError> {
         let dir = self.publication_dir(provider, publication_id);
         if dir.exists() {
             std::fs::remove_dir_all(&dir).map_err(|e| DocDownloaderError::FileSystemError {
@@ -82,25 +89,30 @@ impl CacheManager {
     /// Cleans all cached publications.
     pub fn clean_all(&self) -> Result<(), DocDownloaderError> {
         if self.base_dir.exists() {
-            std::fs::remove_dir_all(&self.base_dir).map_err(|e| DocDownloaderError::FileSystemError {
-                path: self.base_dir.clone(),
-                reason: format!("Failed to clean cache root: {e}"),
+            std::fs::remove_dir_all(&self.base_dir).map_err(|e| {
+                DocDownloaderError::FileSystemError {
+                    path: self.base_dir.clone(),
+                    reason: format!("Failed to clean cache root: {e}"),
+                }
             })?;
         }
         Ok(())
     }
 
     /// Lists all cached publication IDs grouped by provider.
-    pub fn list_cached_publications(&self) -> Result<Vec<(String, String, PathBuf)>, DocDownloaderError> {
+    pub fn list_cached_publications(
+        &self,
+    ) -> Result<Vec<(String, String, PathBuf)>, DocDownloaderError> {
         let mut result = Vec::new();
         if !self.base_dir.exists() {
             return Ok(result);
         }
 
-        let provider_entries = std::fs::read_dir(&self.base_dir).map_err(|e| DocDownloaderError::FileSystemError {
-            path: self.base_dir.clone(),
-            reason: format!("Failed to read cache root: {e}"),
-        })?;
+        let provider_entries =
+            std::fs::read_dir(&self.base_dir).map_err(|e| DocDownloaderError::FileSystemError {
+                path: self.base_dir.clone(),
+                reason: format!("Failed to read cache root: {e}"),
+            })?;
 
         for prov_entry in provider_entries.flatten() {
             if prov_entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
