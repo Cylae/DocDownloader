@@ -41,7 +41,10 @@ harness = false
 
 [profile.release]
 opt-level = 3
-lto = true
-codegen-units = 1
-panic = "abort"
-strip = true
+lto = false
+panic = "unwind"
+
+[profile.bench]
+opt-level = 3
+lto = false
+

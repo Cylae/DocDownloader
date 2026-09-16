@@ -64,11 +64,11 @@ pub static PROFILE: &str = "debug";
 #[allow(clippy::needless_raw_string_hashes)]
 #[doc=r#"The compiler that cargo resolved to use."#]
 #[allow(dead_code)]
-pub static RUSTC: &str = "C:\\Users\\Cylae\\.rustup\\toolchains\\stable-x86_64-pc-windows-gnu\\bin\\rustc.exe";
+pub static RUSTC: &str = "rustc";
 #[allow(clippy::needless_raw_string_hashes)]
 #[doc=r#"The documentation generator that cargo resolved to use."#]
 #[allow(dead_code)]
-pub static RUSTDOC: &str = "C:\\Users\\Cylae\\.rustup\\toolchains\\stable-x86_64-pc-windows-gnu\\bin\\rustdoc.exe";
+pub static RUSTDOC: &str = "rustdoc";
 #[allow(clippy::needless_raw_string_hashes)]
 #[doc=r#"Value of `OPT_LEVEL` for the profile used during compilation."#]
 #[allow(dead_code)]
@@ -98,11 +98,11 @@ pub static FEATURES_LOWERCASE: [&str; 1] = ["threading"];
 #[allow(dead_code)]
 pub static FEATURES_LOWERCASE_STR: &str = "threading";
 #[allow(clippy::needless_raw_string_hashes)]
-#[doc=r#"The output of `C:\Users\Cylae\.rustup\toolchains\stable-x86_64-pc-windows-gnu\bin\rustc.exe -V`"#]
+#[doc=r#"The output of `rustc -V`"#]
 #[allow(dead_code)]
 pub static RUSTC_VERSION: &str = "rustc 1.98.1 (48a229cea 2026-09-01)";
 #[allow(clippy::needless_raw_string_hashes)]
-#[doc=r#"The output of `C:\Users\Cylae\.rustup\toolchains\stable-x86_64-pc-windows-gnu\bin\rustdoc.exe -V`; empty string if `C:\Users\Cylae\.rustup\toolchains\stable-x86_64-pc-windows-gnu\bin\rustdoc.exe -V` failed to execute"#]
+#[doc=r#"The output of `rustdoc -V`; empty string if `rustdoc -V` failed to execute"#]
 #[allow(dead_code)]
 pub static RUSTDOC_VERSION: &str = "rustdoc 1.98.1 (48a229cea 2026-09-01)";
 #[allow(clippy::needless_raw_string_hashes)]

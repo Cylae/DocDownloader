@@ -16,13 +16,29 @@ pub struct Cli {
     #[arg(index = 1)]
     pub url: Option<String>,
 
-    /// Output PDF file path or directory
+    /// Output PDF file path
     #[arg(short, long, global = true)]
     pub output: Option<PathBuf>,
+
+    /// Target directory for saved PDF (uses sanitized publication title)
+    #[arg(long, global = true)]
+    pub output_dir: Option<PathBuf>,
 
     /// Number of concurrent page downloads (1-16)
     #[arg(short, long, default_value_t = 4, global = true)]
     pub concurrency: usize,
+
+    /// Request timeout in seconds
+    #[arg(long, default_value_t = 45, global = true)]
+    pub timeout: u64,
+
+    /// Maximum retry attempts for transient errors
+    #[arg(long, default_value_t = 4, global = true)]
+    pub retries: u32,
+
+    /// Disable resuming from cached state; fetch all assets fresh
+    #[arg(long, global = true)]
+    pub no_resume: bool,
 
     /// Force overwrite of existing destination file
     #[arg(short, long, global = true)]
@@ -72,6 +88,8 @@ pub struct CacheArgs {
 
 #[derive(Subcommand, Debug)]
 pub enum CacheAction {
+    /// Show cache summary status (location, items count, disk usage)
+    Status,
     /// List all cached publications
     List,
     /// Clean all cached publications or a specific publication

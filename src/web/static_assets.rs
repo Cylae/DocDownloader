@@ -78,9 +78,9 @@ pub const INDEX_HTML: &str = r##"<!DOCTYPE html>
         <div class="preview-content">
           <img id="thumbImg" class="preview-thumb" src="" alt="Thumbnail" />
           <div class="preview-details">
-            <h3 id="pubTitle">Title</h3>
-            <p id="pubAuthor" class="preview-meta">Author: Saint Joseph Lannion</p>
-            <p id="pubPages" class="preview-meta">Pages: 2</p>
+            <h3 id="pubTitle"></h3>
+            <p id="pubAuthor" class="preview-meta"></p>
+            <p id="pubPages" class="preview-meta"></p>
             <p id="pubQuality" class="preview-meta">Target: Best Legitimate Reader Quality</p>
             <button id="downloadBtn" onclick="startDownload()" style="margin-top: 0.5rem;">Download Offline PDF</button>
           </div>

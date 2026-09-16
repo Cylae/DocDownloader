@@ -44,6 +44,16 @@ impl CalameoSignature {
     }
 }
 
+/// Signs an asset URL with an optional raw token string.
+pub fn sign_calameo_asset_url(base_url: &str, token: Option<&str>) -> String {
+    if let Some(t) = token {
+        let delimiter = if base_url.contains('?') { '&' } else { '?' };
+        format!("{base_url}{delimiter}_token_={t}")
+    } else {
+        base_url.to_string()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

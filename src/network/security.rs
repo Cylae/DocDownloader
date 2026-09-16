@@ -1,7 +1,35 @@
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use crate::core::error::DocDownloaderError;
+use reqwest::dns::{Name, Resolve, Resolving};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use url::Url;
 
-use crate::core::error::DocDownloaderError;
+#[derive(Clone, Default)]
+pub struct SecureDnsResolver;
+
+impl Resolve for SecureDnsResolver {
+    fn resolve(&self, name: Name) -> Resolving {
+        let domain = name.as_str().to_string();
+        Box::pin(async move {
+            let mut addrs: Vec<SocketAddr> = Vec::new();
+            if let Ok(lookup) = tokio::net::lookup_host((domain.as_str(), 0)).await {
+                for addr in lookup {
+                    if is_ip_allowed(addr.ip()) {
+                        addrs.push(addr);
+                    }
+                }
+            }
+            if addrs.is_empty() {
+                let err: Box<dyn std::error::Error + Send + Sync> = Box::new(std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    format!("No public IP addresses found for domain {}", domain),
+                ));
+                return Err(err);
+            }
+            let iter: Box<dyn Iterator<Item = SocketAddr> + Send> = Box::new(addrs.into_iter());
+            Ok(iter)
+        })
+    }
+}
 
 /// Validates that an IP address is a public, routable internet address and not a loopback,
 /// private (RFC 1918), link-local, carrier-grade NAT, or multicast address.
@@ -105,38 +133,49 @@ pub fn validate_url_security(url: &Url) -> Result<(), DocDownloaderError> {
         });
     }
 
-    let host_str = match url.host_str() {
-        Some(h) => h,
+    match url.host() {
+        Some(url::Host::Ipv4(ipv4)) => {
+            if !is_ip_allowed(IpAddr::V4(ipv4)) {
+                return Err(DocDownloaderError::RedirectRejected {
+                    url: url.to_string(),
+                    reason: format!(
+                        "Target IP '{ipv4}' is in a private, loopback, or reserved range"
+                    ),
+                });
+            }
+        }
+        Some(url::Host::Ipv6(ipv6)) => {
+            if !is_ip_allowed(IpAddr::V6(ipv6)) {
+                return Err(DocDownloaderError::RedirectRejected {
+                    url: url.to_string(),
+                    reason: format!(
+                        "Target IP '{ipv6}' is in a private, loopback, or reserved range"
+                    ),
+                });
+            }
+        }
+        Some(url::Host::Domain(domain)) => {
+            let lower_host = domain.to_ascii_lowercase();
+            if lower_host == "localhost"
+                || lower_host.ends_with(".localhost")
+                || lower_host.ends_with(".local")
+                || lower_host.ends_with(".internal")
+                || lower_host.ends_with(".lan")
+                || lower_host.ends_with(".home")
+                || lower_host.ends_with(".corp")
+            {
+                return Err(DocDownloaderError::RedirectRejected {
+                    url: url.to_string(),
+                    reason: format!(
+                        "Target hostname '{domain}' resolved to forbidden local domain"
+                    ),
+                });
+            }
+        }
         None => {
             return Err(DocDownloaderError::InvalidUrl {
                 url: url.to_string(),
                 reason: "URL is missing a valid hostname".to_string(),
-            });
-        }
-    };
-
-    // Check string-based local names
-    let lower_host = host_str.to_ascii_lowercase();
-    if lower_host == "localhost"
-        || lower_host.ends_with(".localhost")
-        || lower_host.ends_with(".local")
-        || lower_host.ends_with(".internal")
-        || lower_host.ends_with(".lan")
-        || lower_host.ends_with(".home")
-        || lower_host.ends_with(".corp")
-    {
-        return Err(DocDownloaderError::RedirectRejected {
-            url: url.to_string(),
-            reason: format!("Target hostname '{host_str}' resolved to forbidden local domain"),
-        });
-    }
-
-    // Check if host is an explicit IP address
-    if let Ok(ip) = host_str.parse::<IpAddr>() {
-        if !is_ip_allowed(ip) {
-            return Err(DocDownloaderError::RedirectRejected {
-                url: url.to_string(),
-                reason: format!("Target IP '{ip}' is in a private, loopback, or reserved range"),
             });
         }
     }

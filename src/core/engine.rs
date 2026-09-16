@@ -44,6 +44,7 @@ pub struct DownloadEngine {
     cache: CacheManager,
     concurrency: usize,
     force_overwrite: bool,
+    no_resume: bool,
 }
 
 impl DownloadEngine {
@@ -54,12 +55,24 @@ impl DownloadEngine {
         concurrency: usize,
         force_overwrite: bool,
     ) -> Self {
+        Self::with_options(client, registry, cache, concurrency, force_overwrite, false)
+    }
+
+    pub fn with_options(
+        client: HttpClient,
+        registry: Arc<ProviderRegistry>,
+        cache: CacheManager,
+        concurrency: usize,
+        force_overwrite: bool,
+        no_resume: bool,
+    ) -> Self {
         Self {
             client,
             registry,
             cache,
             concurrency: concurrency.clamp(1, 16),
             force_overwrite,
+            no_resume,
         }
     }
 
@@ -77,7 +90,9 @@ impl DownloadEngine {
         mut cancel_rx: watch::Receiver<bool>,
     ) -> Result<PathBuf, DocDownloaderError> {
         listener.on_state_change(&JobState::ValidatingUrl);
-        crate::network::security::validate_url_security(url)?;
+        if !self.client.is_local_mock_allowed() {
+            crate::network::security::validate_url_security(url)?;
+        }
 
         if *cancel_rx.borrow() {
             return Err(DocDownloaderError::Cancelled);
@@ -124,20 +139,84 @@ impl DownloadEngine {
             .cache
             .manifest_path(&publication.provider, &publication.publication_id);
 
-        // Load or create job manifest
-        let mut manifest = match JobManifest::load_from_file(&manifest_file) {
-            Ok(existing) if existing.expected_pages == publication.page_count => {
-                listener
-                    .on_log_message("Found existing job checkpoint. Validating cache integrity...");
-                existing
+        // Attempt direct PDF acquisition if legitimately exposed by the provider
+        if let Some(ref direct_pdf_url) = publication.direct_pdf_url {
+            listener.on_log_message(
+                "Publisher exposed direct PDF download; attempting direct acquisition...",
+            );
+            let mut direct_writer = crate::storage::atomic::AtomicFileWriter::new(&final_pdf_path)?;
+            match self
+                .client
+                .stream_to_atomic_file(
+                    direct_pdf_url,
+                    None,
+                    &mut direct_writer,
+                    crate::network::client::MAX_PAGE_BYTE_LIMIT * 10,
+                )
+                .await
+            {
+                Ok((bytes, _hash)) => {
+                    if let Ok(()) = crate::pdf::validator::validate_pdf_document(
+                        direct_writer.temp_path(),
+                        publication.page_count,
+                    ) {
+                        let committed_path = direct_writer.commit()?;
+                        let mut manifest = JobManifest::new(
+                            &publication.provider,
+                            &publication.publication_id,
+                            &publication.canonical_url,
+                            &publication.title,
+                            publication.page_count,
+                        );
+                        manifest.direct_pdf_downloaded = true;
+                        let _ = manifest.save_to_file(&manifest_file);
+                        listener.on_state_change(&JobState::Completed {
+                            output_path: committed_path.clone(),
+                            total_pages: publication.page_count,
+                            bytes,
+                        });
+                        return Ok(committed_path);
+                    } else {
+                        listener.on_log_message(
+                            "Direct PDF failed structural or page count validation; falling back to page reconstruction",
+                        );
+                        direct_writer.abort();
+                    }
+                }
+                Err(e) => {
+                    listener.on_log_message(&format!(
+                        "Direct PDF acquisition failed ({e}); falling back to page reconstruction"
+                    ));
+                    direct_writer.abort();
+                }
             }
-            _ => JobManifest::new(
+        }
+
+        // Load or create job manifest
+        let mut manifest = if !self.no_resume {
+            match JobManifest::load_from_file(&manifest_file) {
+                Ok(existing) if existing.expected_pages == publication.page_count => {
+                    listener.on_log_message(
+                        "Found existing job checkpoint. Validating cache integrity...",
+                    );
+                    existing
+                }
+                _ => JobManifest::new(
+                    &publication.provider,
+                    &publication.publication_id,
+                    &publication.canonical_url,
+                    &publication.title,
+                    publication.page_count,
+                ),
+            }
+        } else {
+            JobManifest::new(
                 &publication.provider,
                 &publication.publication_id,
                 &publication.canonical_url,
                 &publication.title,
                 publication.page_count,
-            ),
+            )
         };
 
         // Validate any existing completed pages in manifest
@@ -338,10 +417,10 @@ async fn download_single_candidate(
     let meta = inspect_and_validate_asset(writer.temp_path(), page_desc.index)?;
     let final_path = writer.commit()?;
 
-    let relative_path = format!(
-        "pages/{}",
-        final_path.file_name().unwrap().to_string_lossy()
-    );
+    let relative_path = match final_path.file_name() {
+        Some(name) => format!("pages/{}", name.to_string_lossy()),
+        None => format!("pages/page_{:04}.{ext}", page_desc.index),
+    };
 
     Ok(CompletedPageAsset {
         page_index: page_desc.index,

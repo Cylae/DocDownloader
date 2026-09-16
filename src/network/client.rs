@@ -6,7 +6,7 @@ use url::Url;
 
 use crate::core::error::DocDownloaderError;
 use crate::network::retry::{parse_retry_after, RetryPolicy};
-use crate::network::security::validate_url_security;
+use crate::network::security::{validate_url_security, SecureDnsResolver};
 use crate::storage::atomic::AtomicFileWriter;
 
 /// Default User-Agent string used for transparent identification.
@@ -24,6 +24,7 @@ pub const MAX_PAGE_BYTE_LIMIT: u64 = 50 * 1024 * 1024;
 pub struct HttpClient {
     inner: reqwest::Client,
     retry_policy: Arc<RetryPolicy>,
+    allow_local_mock: bool,
 }
 
 impl HttpClient {
@@ -51,6 +52,7 @@ impl HttpClient {
             .connect_timeout(connect_timeout)
             .timeout(request_timeout)
             .redirect(redirect_policy)
+            .dns_resolver(Arc::new(SecureDnsResolver))
             .pool_max_idle_per_host(10)
             .tcp_keepalive(Some(Duration::from_secs(30)))
             .build()
@@ -61,11 +63,38 @@ impl HttpClient {
         Ok(Self {
             inner: client,
             retry_policy: Arc::new(RetryPolicy::default()),
+            allow_local_mock: false,
         })
     }
 
     pub fn default_client() -> Result<Self, DocDownloaderError> {
         Self::new(Duration::from_secs(10), Duration::from_secs(45))
+    }
+
+    /// Creates a test-only HTTP client that permits loopback connections for local WireMock tests.
+    pub fn new_test_client() -> Result<Self, DocDownloaderError> {
+        let mut default_headers = HeaderMap::new();
+        default_headers.insert(USER_AGENT, HeaderValue::from_static(DEFAULT_USER_AGENT));
+
+        let client = reqwest::Client::builder()
+            .default_headers(default_headers)
+            .connect_timeout(Duration::from_secs(5))
+            .timeout(Duration::from_secs(15))
+            .build()
+            .map_err(|e| DocDownloaderError::InternalInvariantViolation {
+                reason: format!("Failed to build test HTTP client: {e}"),
+            })?;
+
+        Ok(Self {
+            inner: client,
+            retry_policy: Arc::new(RetryPolicy {
+                max_retries: 2,
+                initial_delay: Duration::from_millis(10),
+                max_delay: Duration::from_millis(50),
+                jitter_factor: 0.1,
+            }),
+            allow_local_mock: true,
+        })
     }
 
     pub fn with_retry_policy(mut self, policy: RetryPolicy) -> Self {
@@ -75,6 +104,10 @@ impl HttpClient {
 
     pub fn inner(&self) -> &reqwest::Client {
         &self.inner
+    }
+
+    pub fn is_local_mock_allowed(&self) -> bool {
+        self.allow_local_mock
     }
 
     /// Validates the URL and sends an HTTP GET request with retries, respecting 429 and transient errors.
@@ -88,7 +121,9 @@ impl HttpClient {
             reason: e.to_string(),
         })?;
 
-        validate_url_security(&parsed_url)?;
+        if !self.allow_local_mock {
+            validate_url_security(&parsed_url)?;
+        }
 
         let mut attempt = 0;
         loop {

@@ -5,6 +5,13 @@ pub struct CalameoResponse {
     pub status: String,
     pub id: Option<String>,
     pub content: Option<CalameoContent>,
+    pub error: Option<CalameoError>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CalameoError {
+    pub code: Option<u32>,
+    pub message: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

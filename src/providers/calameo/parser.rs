@@ -66,29 +66,54 @@ pub async fn resolve_via_book_api(
             reason: format!("Failed to parse Calaméo book JSON: {e}"),
         })?;
 
+    parse_calameo_book_response(&parsed, publication_id, canonical_url, sig.as_ref())
+}
+
+/// Parses structured Calaméo book metadata into normalized Publication domain model.
+pub fn parse_calameo_book_response(
+    parsed: &CalameoResponse,
+    publication_id: &str,
+    canonical_url: &str,
+    sig: Option<&CalameoSignature>,
+) -> Result<Publication, DocDownloaderError> {
     if parsed.status != "ok" {
-        // Check for known error codes
-        let err_text = String::from_utf8_lossy(&body_bytes);
-        if err_text.contains("Unknown book") || err_text.contains("\"code\":101") {
-            return Err(DocDownloaderError::PublicationNotFound {
-                id: publication_id.to_string(),
-                reason: "Book code not found on Calaméo".to_string(),
-            });
-        }
-        if err_text.contains("Access denied") || err_text.contains("\"code\":403") {
-            return Err(DocDownloaderError::AccessRestricted {
-                id: publication_id.to_string(),
-                reason: "Public access restricted by publisher".to_string(),
-            });
+        if let Some(ref err) = parsed.error {
+            if err.code == Some(101)
+                || err
+                    .message
+                    .as_deref()
+                    .map(|m| m.contains("Unknown book") || m.contains("unavailable"))
+                    .unwrap_or(false)
+            {
+                return Err(DocDownloaderError::AccessRestricted {
+                    id: publication_id.to_string(),
+                    reason: err.message.clone().unwrap_or_else(|| {
+                        "Publication unavailable or access restricted".to_string()
+                    }),
+                });
+            }
+            if err.code == Some(403)
+                || err
+                    .message
+                    .as_deref()
+                    .map(|m| m.contains("Access denied") || m.contains("Access restricted"))
+                    .unwrap_or(false)
+            {
+                return Err(DocDownloaderError::AccessRestricted {
+                    id: publication_id.to_string(),
+                    reason: "Public access restricted by publisher".to_string(),
+                });
+            }
         }
         return Err(DocDownloaderError::InvalidMetadata {
             id: publication_id.to_string(),
-            reason: format!("Calaméo returned error status: {err_text}"),
+            reason: "Calaméo returned error status".to_string(),
         });
     }
 
     let content = parsed
         .content
+        .as_ref()
         .ok_or_else(|| DocDownloaderError::InvalidMetadata {
             id: publication_id.to_string(),
             reason: "Calaméo API response missing content block".to_string(),
@@ -116,6 +141,7 @@ pub async fn resolve_via_book_api(
 
     let doc = content
         .document
+        .as_ref()
         .ok_or_else(|| DocDownloaderError::InvalidMetadata {
             id: publication_id.to_string(),
             reason: "Missing document specifications in Calaméo metadata".to_string(),
@@ -137,7 +163,7 @@ pub async fn resolve_via_book_api(
     let key = if content.key.is_empty() {
         publication_id.to_string()
     } else {
-        content.key
+        content.key.clone()
     };
 
     // Determine domain paths
@@ -174,20 +200,9 @@ pub async fn resolve_via_book_api(
     for idx in 1..=page_count {
         let mut candidates = Vec::new();
 
-        // 1. Direct PDF if enabled (priority 0)
-        if let Some(ref pdf_url) = direct_pdf_url {
-            candidates.push(AssetCandidate {
-                priority: 0,
-                url: pdf_url.clone(),
-                asset_type: AssetType::DirectPdf,
-                geometry: base_geometry,
-                headers: Vec::new(),
-            });
-        }
-
-        // 2. High-resolution JPEG page asset (priority 1)
+        // 1. High-resolution JPEG page asset (priority 1)
         let raw_jpg_url = format!("{secured_image_domain}{key}/p{idx}.jpg");
-        let signed_jpg_url = if let Some(ref s) = sig {
+        let signed_jpg_url = if let Some(s) = sig {
             s.sign_url(&raw_jpg_url)
         } else {
             raw_jpg_url
@@ -202,7 +217,7 @@ pub async fn resolve_via_book_api(
 
         // 3. Fallback SVG asset (priority 2)
         let raw_svg_url = format!("{secured_svg_domain}{key}/p{idx}.svgz");
-        let signed_svg_url = if let Some(ref s) = sig {
+        let signed_svg_url = if let Some(s) = sig {
             s.sign_url(&raw_svg_url)
         } else {
             raw_svg_url
@@ -239,9 +254,9 @@ pub async fn resolve_via_book_api(
         title: if content.name.is_empty() {
             format!("Calameo_{publication_id}")
         } else {
-            content.name
+            content.name.clone()
         },
-        author: content.account.and_then(|a| a.name),
+        author: content.account.as_ref().and_then(|a| a.name.clone()),
         description: None,
         page_count,
         thumbnail_url: Some(format!("{thumb_domain}{key}/p1.jpg")),
@@ -276,7 +291,15 @@ pub async fn resolve_via_html_fallback(
             elapsed_secs: 45,
         })?;
     let html = String::from_utf8_lossy(&body_bytes);
+    parse_calameo_reader_html(&html, publication_id, canonical_url)
+}
 
+/// Pure parser extracting publication model from public reader HTML.
+pub fn parse_calameo_reader_html(
+    html: &str,
+    publication_id: &str,
+    canonical_url: &str,
+) -> Result<Publication, DocDownloaderError> {
     // Check for private / access restricted indications in HTML
     if html.contains("This document is private") || html.contains("Ce document est privé") {
         return Err(DocDownloaderError::AccessRestricted {
@@ -289,7 +312,7 @@ pub async fn resolve_via_html_fallback(
     let title_re =
         Regex::new(r#"<meta\s+property=["']og:title["']\s+content=["'](.*?)["']"#).unwrap();
     let title = title_re
-        .captures(&html)
+        .captures(html)
         .and_then(|c| c.get(1))
         .map(|m| m.as_str().to_string())
         .unwrap_or_else(|| format!("Calameo_{publication_id}"));
@@ -297,7 +320,7 @@ pub async fn resolve_via_html_fallback(
     // Extract description & page count: Length:\s*(\d+)\s*pages?
     let length_re = Regex::new(r#"Length:\s*(\d+)\s*pages?"#).unwrap();
     let page_count = length_re
-        .captures(&html)
+        .captures(html)
         .and_then(|c| c.get(1))
         .and_then(|m| m.as_str().parse::<u32>().ok())
         .unwrap_or(0);
@@ -315,7 +338,7 @@ pub async fn resolve_via_html_fallback(
         r#"https://ps\.calameoassets\.com/([a-zA-Z0-9_-]+)/p1\.jpg(?:\?_token_=([^\s"'>]+))?"#,
     )
     .unwrap();
-    let (key, token_opt) = if let Some(caps) = img_re.captures(&html) {
+    let (key, token_opt) = if let Some(caps) = img_re.captures(html) {
         let key = caps
             .get(1)
             .map(|m| m.as_str().to_string())

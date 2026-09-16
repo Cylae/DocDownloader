@@ -168,7 +168,7 @@ pub async fn download_handler(
         "job_{}",
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_millis()
     );
     let (tx, _rx) = broadcast::channel(100);
@@ -222,7 +222,9 @@ pub async fn download_handler(
                         total_pages: j.total_pages,
                         error: None,
                     };
-                    let _ = j.tx.send(serde_json::to_string(&evt).unwrap());
+                    if let Ok(json) = serde_json::to_string(&evt) {
+                        let _ = j.tx.send(json);
+                    }
                 }
                 Err(e) => {
                     j.status = "Failed".to_string();
@@ -234,7 +236,9 @@ pub async fn download_handler(
                         total_pages: j.total_pages,
                         error: Some(e.to_string()),
                     };
-                    let _ = j.tx.send(serde_json::to_string(&evt).unwrap());
+                    if let Ok(json) = serde_json::to_string(&evt) {
+                        let _ = j.tx.send(json);
+                    }
                 }
             }
         }
@@ -278,10 +282,10 @@ pub async fn file_handler(
         )
     })?;
 
-    let bytes = std::fs::read(path).map_err(|e| {
+    let bytes = std::fs::read(path).map_err(|_e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to read file: {e}"),
+            "Failed to read downloaded file from storage".to_string(),
         )
     })?;
 
@@ -297,7 +301,12 @@ pub async fn file_handler(
             format!("attachment; filename=\"{filename}\""),
         )
         .body(axum::body::Body::from(bytes))
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        .map_err(|_e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to build HTTP response".to_string(),
+            )
+        })?;
 
     Ok(response)
 }

@@ -1,0 +1,33 @@
+{
+  "status": "ok",
+  "content": {
+    "id": "0061133461a5012e8961a",
+    "name": "Synthetic Test Publication - Corporate Report 2025",
+    "key": "240822153012-0061133461a5012e8961a",
+    "mode": "public",
+    "account": {
+      "id": 123456,
+      "name": "Acme Corporation"
+    },
+    "document": {
+      "width": 1125,
+      "height": 1591,
+      "pages": 4
+    },
+    "features": {
+      "download": {
+        "enabled": false,
+        "url": null
+      }
+    },
+    "domains": {
+      "pages": "http://p.calameoassets.com/",
+      "image": "https://ps.calameoassets.com/",
+      "thumbnail": "http://i.calameoassets.com/",
+      "secured": {
+        "image": "https://ps.calameoassets.com/",
+        "svg": "https://ps.calameoassets.com/"
+      }
+    }
+  }
+}

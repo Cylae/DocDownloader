@@ -49,16 +49,24 @@ async fn main() {
 }
 
 async fn run_cli(cli: Cli, cancel_rx: watch::Receiver<bool>) -> Result<(), DocDownloaderError> {
-    let http_client = HttpClient::default_client()?;
+    let connect_timeout = std::time::Duration::from_secs(10);
+    let request_timeout = std::time::Duration::from_secs(cli.timeout);
+    let retry_policy = docdownloader::network::retry::RetryPolicy {
+        max_retries: cli.retries,
+        ..Default::default()
+    };
+    let http_client =
+        HttpClient::new(connect_timeout, request_timeout)?.with_retry_policy(retry_policy);
     let registry = Arc::new(ProviderRegistry::new());
     let cache = CacheManager::default_manager();
 
-    let engine = Arc::new(DownloadEngine::new(
+    let engine = Arc::new(DownloadEngine::with_options(
         http_client,
         registry.clone(),
         cache.clone(),
         cli.concurrency,
         cli.force,
+        cli.no_resume,
     ));
 
     // Handle commands or default URL shorthand
@@ -88,7 +96,7 @@ async fn run_cli(cli: Cli, cancel_rx: watch::Receiver<bool>) -> Result<(), DocDo
             })?;
 
             let listener = CliProgressReporter::new(cli.quiet);
-            let out_path = cli.output.as_deref();
+            let out_path = cli.output.as_deref().or(cli.output_dir.as_deref());
 
             let result = engine
                 .download(&parsed_url, out_path, listener, cancel_rx)
@@ -116,20 +124,43 @@ async fn run_cli(cli: Cli, cancel_rx: watch::Receiver<bool>) -> Result<(), DocDo
             if let Some(geom) = pub_info.geometry {
                 println!("Document Geometry: {}x{} pt", geom.width, geom.height);
             }
-            if let Some(ref direct_pdf) = pub_info.direct_pdf_url {
-                println!("Direct PDF Available: Yes ({direct_pdf})");
-            } else {
-                println!(
-                    "Direct PDF Available: No (Reconstructing via high-resolution page assets)"
-                );
+            if let Some(first_page) = pub_info.pages.first() {
+                if let Some(best) = first_page.best_candidate() {
+                    if let Some(geom) = best.geometry {
+                        println!(
+                            "Best Discovered Quality: {}x{} px ({:?})",
+                            geom.width, geom.height, best.asset_type
+                        );
+                    }
+                }
             }
+            let direct_pdf_status = match pub_info.direct_pdf_url {
+                Some(ref url) => format!("Available ({url})"),
+                None => "Unavailable".to_string(),
+            };
+            println!("Direct PDF: {direct_pdf_status}");
+            let extraction_method = if pub_info.direct_pdf_url.is_some() {
+                "Direct PDF download"
+            } else {
+                "High-resolution page assets"
+            };
+            println!("Extraction Method: {extraction_method}");
             if let Some(ref thumb) = pub_info.thumbnail_url {
                 println!("Thumbnail: {thumb}");
             }
         }
         Commands::Cache(args) => {
-            let action = args.action.unwrap_or(CacheAction::List);
+            let action = args.action.unwrap_or(CacheAction::Status);
             match action {
+                CacheAction::Status => {
+                    let items = cache.list_cached_publications()?;
+                    let total_bytes = cache.total_size_bytes();
+                    let mb = total_bytes as f64 / (1024.0 * 1024.0);
+                    println!("Cache Status:");
+                    println!("  Location: {}", cache.base_dir().display());
+                    println!("  Publications: {}", items.len());
+                    println!("  Total Size: {:.2} MB ({} bytes)", mb, total_bytes);
+                }
                 CacheAction::List => {
                     let items = cache.list_cached_publications()?;
                     if items.is_empty() {

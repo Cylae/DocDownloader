@@ -1,0 +1,8 @@
+[target.x86_64-pc-windows-gnu]
+rustflags = ["-L", "C:/Users/Cylae/Documents/GitHub/DocDownloader/native-libs"]
+
+
+[env]
+CARGO_INCREMENTAL = "0"
+
+

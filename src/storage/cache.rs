@@ -130,4 +130,33 @@ impl CacheManager {
 
         Ok(result)
     }
+
+    pub fn base_dir(&self) -> &std::path::Path {
+        &self.base_dir
+    }
+
+    /// Computes total size in bytes of all cached files.
+    pub fn total_size_bytes(&self) -> u64 {
+        fn dir_size(path: &std::path::Path) -> u64 {
+            let mut total = 0;
+            if let Ok(entries) = std::fs::read_dir(path) {
+                for entry in entries.flatten() {
+                    if let Ok(meta) = entry.metadata() {
+                        if meta.is_file() {
+                            total += meta.len();
+                        } else if meta.is_dir() {
+                            total += dir_size(&entry.path());
+                        }
+                    }
+                }
+            }
+            total
+        }
+
+        if self.base_dir.exists() {
+            dir_size(&self.base_dir)
+        } else {
+            0
+        }
+    }
 }

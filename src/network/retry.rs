@@ -53,8 +53,8 @@ impl RetryPolicy {
             return delay.min(self.max_delay);
         }
 
-        let base_millis =
-            self.initial_delay.as_millis() as f64 * (2.0_f64.powi((attempt - 1).min(6) as i32));
+        let exp = attempt.saturating_sub(1).min(6) as i32;
+        let base_millis = self.initial_delay.as_millis() as f64 * (2.0_f64.powi(exp));
         let bounded_millis = base_millis.min(self.max_delay.as_millis() as f64);
 
         // Deterministic pseudo-jitter based on attempt to avoid thread_rng dependencies

@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  lint-and-fmt:
+    name: Code Quality & Style
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Format Check
+        run: cargo fmt --check
+      - name: Clippy Strict Check
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+  test-matrix:
+    name: Test Suite (${{ matrix.os }})
+    needs: lint-and-fmt
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Run Test Suite
+        run: cargo test --all-targets --all-features
+      - name: Run Synthetic Benchmarks
+        run: cargo bench --bench synthetic_bench
+
+  release-build:
+    name: Release Build Smoke (${{ matrix.os }})
+    needs: lint-and-fmt
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build Release Binary
+        run: cargo build --release
+      - name: Verify CLI Binary
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            ./target/release/docdownloader.exe --help
+          else
+            ./target/release/docdownloader --help
+          fi

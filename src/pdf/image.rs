@@ -152,8 +152,9 @@ fn validate_dimensions(width: u32, height: u32, page_index: u32) -> Result<(), D
         });
     }
 
-    // Detect absurd decompression bomb dimensions (> 50,000 pixels)
-    if width > 50_000 || height > 50_000 {
+    // Detect absurd decompression bomb dimensions (e.g. > 8192 pixels)
+    // 8192x8192 pixels * 4 bytes = ~268 MB memory per image, stopping ZIP bombs early
+    if width > 8192 || height > 8192 {
         return Err(DocDownloaderError::PageCorrupt {
             page_index,
             reason: format!("Absurd image dimensions ({width}x{height}) exceed safety bounds"),

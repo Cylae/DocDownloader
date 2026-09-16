@@ -14,6 +14,7 @@ use crate::web::handlers::{
 };
 use crate::web::security::{csp_layer, frame_options_layer, nosniff_layer};
 use crate::web::static_assets::INDEX_HTML;
+use axum::extract::DefaultBodyLimit;
 
 pub async fn run_server(
     engine: Arc<DownloadEngine>,
@@ -41,6 +42,7 @@ pub async fn run_server(
         .layer(csp_layer())
         .layer(nosniff_layer())
         .layer(frame_options_layer())
+        .layer(DefaultBodyLimit::max(64 * 1024))
         .with_state(state);
 
     let addr: SocketAddr =
