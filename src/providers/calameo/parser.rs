@@ -309,8 +309,10 @@ pub fn parse_calameo_reader_html(
     }
 
     // Extract title: <meta property="og:title" content="..."> or <title>...</title>
-    let title_re =
-        Regex::new(r#"<meta\s+property=["']og:title["']\s+content=["'](.*?)["']"#).unwrap();
+    let title_re = Regex::new(r#"<meta\s+property=["']og:title["']\s+content=["'](.*?)["']"#)
+        .map_err(|e| DocDownloaderError::InternalInvariantViolation {
+            reason: format!("Failed to compile title regex: {e}"),
+        })?;
     let title = title_re
         .captures(html)
         .and_then(|c| c.get(1))
@@ -318,7 +320,11 @@ pub fn parse_calameo_reader_html(
         .unwrap_or_else(|| format!("Calameo_{publication_id}"));
 
     // Extract description & page count: Length:\s*(\d+)\s*pages?
-    let length_re = Regex::new(r#"Length:\s*(\d+)\s*pages?"#).unwrap();
+    let length_re = Regex::new(r#"Length:\s*(\d+)\s*pages?"#).map_err(|e| {
+        DocDownloaderError::InternalInvariantViolation {
+            reason: format!("Failed to compile length regex: {e}"),
+        }
+    })?;
     let page_count = length_re
         .captures(html)
         .and_then(|c| c.get(1))
@@ -337,7 +343,9 @@ pub fn parse_calameo_reader_html(
     let img_re = Regex::new(
         r#"https://ps\.calameoassets\.com/([a-zA-Z0-9_-]+)/p1\.jpg(?:\?_token_=([^\s"'>]+))?"#,
     )
-    .unwrap();
+    .map_err(|e| DocDownloaderError::InternalInvariantViolation {
+        reason: format!("Failed to compile image_src regex: {e}"),
+    })?;
     let (key, token_opt) = if let Some(caps) = img_re.captures(html) {
         let key = caps
             .get(1)

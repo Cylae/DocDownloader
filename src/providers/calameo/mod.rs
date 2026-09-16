@@ -3,7 +3,6 @@ pub mod parser;
 pub mod signature;
 
 use async_trait::async_trait;
-use regex::Regex;
 use url::Url;
 
 use crate::core::document::Publication;
@@ -12,10 +11,7 @@ use crate::network::client::HttpClient;
 use crate::providers::PublicationProvider;
 
 /// Adapter for Calaméo interactive flipbook publications.
-pub struct CalameoProvider {
-    url_regex: Regex,
-    bkcode_regex: Regex,
-}
+pub struct CalameoProvider;
 
 impl Default for CalameoProvider {
     fn default() -> Self {
@@ -25,15 +21,12 @@ impl Default for CalameoProvider {
 
 impl CalameoProvider {
     pub fn new() -> Self {
-        Self {
-            // Matches calameo.com domain with read/ or books/ paths or bkcode query parameter
-            url_regex: Regex::new(
-                r#"(?i)calameo(?:\.test|\.com)/(?:read|books)/([0-9a-fA-F]{21})"#,
-            )
-            .unwrap(),
-            bkcode_regex: Regex::new(r#"^[0-9a-fA-F]{21}$"#).unwrap(),
-        }
+        Self
     }
+}
+
+fn is_valid_bkcode(code: &str) -> bool {
+    code.len() == 21 && code.chars().all(|c| c.is_ascii_hexdigit())
 }
 
 #[async_trait]
@@ -56,32 +49,23 @@ impl PublicationProvider for CalameoProvider {
             return false;
         }
 
-        // Check path matching: /read/<bkcode> or /books/<bkcode>
-        if self.url_regex.is_match(url.as_str()) {
-            return true;
-        }
-
-        // Check query parameter matching: ?bkcode=<bkcode>
-        for (k, v) in url.query_pairs() {
-            if k == "bkcode" && self.bkcode_regex.is_match(&v) {
-                return true;
-            }
-        }
-
-        false
+        self.extract_id(url).is_ok()
     }
 
     fn extract_id(&self, url: &Url) -> Result<String, DocDownloaderError> {
-        // 1. Check path regex
-        if let Some(caps) = self.url_regex.captures(url.as_str())
-            && let Some(m) = caps.get(1)
-        {
-            return Ok(m.as_str().to_ascii_lowercase());
+        let path = url.path();
+        let segments: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
+        for window in segments.windows(2) {
+            if (window[0].eq_ignore_ascii_case("read") || window[0].eq_ignore_ascii_case("books"))
+                && is_valid_bkcode(window[1])
+            {
+                return Ok(window[1].to_ascii_lowercase());
+            }
         }
 
-        // 2. Check query parameter `bkcode`
+        // Check query parameter `bkcode`
         for (k, v) in url.query_pairs() {
-            if k == "bkcode" && self.bkcode_regex.is_match(&v) {
+            if k == "bkcode" && is_valid_bkcode(&v) {
                 return Ok(v.to_ascii_lowercase());
             }
         }
