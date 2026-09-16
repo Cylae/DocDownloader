@@ -94,10 +94,8 @@ pub fn safe_output_path(output_dir: &Path, title: &str) -> PathBuf {
     }
 
     // Ensure resulting path is strictly within output_dir
-    let candidate = output_dir.join(&filename);
-
     // Normalization check: candidate must have output_dir as its prefix
-    candidate
+    output_dir.join(&filename)
 }
 
 #[cfg(test)]
