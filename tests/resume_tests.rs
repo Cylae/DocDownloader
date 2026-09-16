@@ -9,8 +9,8 @@ use docdownloader::providers::{ProviderRegistry, PublicationProvider};
 use docdownloader::storage::cache::CacheManager;
 use image::{ImageBuffer, Rgb};
 use std::io::Cursor;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use tempfile::tempdir;
 use tokio::sync::watch;
 use url::Url;
@@ -310,6 +310,125 @@ async fn test_cache_corruption_detection_and_recovery() {
         listener.downloads.load(Ordering::SeqCst),
         1,
         "Page 2 must be re-downloaded to recover"
+    );
+
+    validate_pdf_document(&result, 2).expect("validated 2-page PDF");
+}
+
+#[tokio::test]
+async fn test_resume_all_pages_cached_skips_all_network_and_builds_pdf() {
+    let temp = tempdir().expect("tempdir");
+    let cache = CacheManager::new(temp.path().join("cache"));
+    let output_pdf = temp.path().join("all_cached_output.pdf");
+
+    let p1_bytes = generate_test_jpeg(600, 800);
+    let p2_bytes = generate_test_jpeg(600, 800);
+
+    // Pre-populate cache with BOTH pages
+    let pub_dir = cache.publication_dir("test", "pub_all_cached");
+    let pages_dir = pub_dir.join("pages");
+    std::fs::create_dir_all(&pages_dir).unwrap();
+
+    let p1_path = pages_dir.join("page_0001.jpg");
+    let p2_path = pages_dir.join("page_0002.jpg");
+    std::fs::write(&p1_path, &p1_bytes).unwrap();
+    std::fs::write(&p2_path, &p2_bytes).unwrap();
+
+    let manifest_path = cache.manifest_path("test", "pub_all_cached");
+    let mut manifest = JobManifest::new(
+        "test",
+        "pub_all_cached",
+        "https://example.com/read/pub_all_cached",
+        "All Cached Doc",
+        2,
+    );
+    manifest.record_completed_page(CompletedPageAsset {
+        page_index: 1,
+        relative_path: "pages/page_0001.jpg".to_string(),
+        sha256: "hash1".to_string(),
+        byte_size: p1_bytes.len() as u64,
+        width: 600,
+        height: 800,
+        asset_type: AssetType::ImageJpeg,
+    });
+    manifest.record_completed_page(CompletedPageAsset {
+        page_index: 2,
+        relative_path: "pages/page_0002.jpg".to_string(),
+        sha256: "hash2".to_string(),
+        byte_size: p2_bytes.len() as u64,
+        width: 600,
+        height: 800,
+        asset_type: AssetType::ImageJpeg,
+    });
+    manifest.save_to_file(&manifest_path).unwrap();
+
+    let pages = vec![
+        PageDescriptor {
+            index: 1,
+            geometry: Some(PageGeometry::new(600, 800)),
+            candidates: vec![AssetCandidate {
+                priority: 1,
+                url: "http://should-never-be-contacted.test/p1.jpg".to_string(),
+                asset_type: AssetType::ImageJpeg,
+                geometry: Some(PageGeometry::new(600, 800)),
+                headers: Vec::new(),
+            }],
+        },
+        PageDescriptor {
+            index: 2,
+            geometry: Some(PageGeometry::new(600, 800)),
+            candidates: vec![AssetCandidate {
+                priority: 1,
+                url: "http://should-never-be-contacted.test/p2.jpg".to_string(),
+                asset_type: AssetType::ImageJpeg,
+                geometry: Some(PageGeometry::new(600, 800)),
+                headers: Vec::new(),
+            }],
+        },
+    ];
+
+    let publication = Publication {
+        provider: "test".to_string(),
+        canonical_url: "https://example.com/read/pub_all_cached".to_string(),
+        publication_id: "pub_all_cached".to_string(),
+        title: "All Cached Document".to_string(),
+        author: None,
+        description: None,
+        page_count: 2,
+        thumbnail_url: None,
+        geometry: Some(PageGeometry::new(600, 800)),
+        direct_pdf_url: None,
+        pages,
+    };
+
+    let mut registry = ProviderRegistry::new();
+    registry.register(Box::new(TestProvider { publication }));
+
+    let client = HttpClient::new_test_client().unwrap();
+    let engine = DownloadEngine::new(client, Arc::new(registry), cache, 2, true);
+
+    let listener = Arc::new(CountingListener {
+        cache_hits: AtomicUsize::new(0),
+        downloads: AtomicUsize::new(0),
+    });
+    let (_cancel_tx, cancel_rx) = watch::channel(false);
+
+    let doc_url = Url::parse("https://example.com/read/pub_all_cached").unwrap();
+    let result = engine
+        .download(&doc_url, Some(&output_pdf), listener.clone(), cancel_rx)
+        .await
+        .expect("download should succeed purely from cache");
+
+    assert!(result.exists());
+    assert_eq!(
+        listener.cache_hits.load(Ordering::SeqCst),
+        2,
+        "Both pages must be reused from cache"
+    );
+    assert_eq!(
+        listener.downloads.load(Ordering::SeqCst),
+        0,
+        "Zero network downloads should occur when all pages are cached"
     );
 
     validate_pdf_document(&result, 2).expect("validated 2-page PDF");

@@ -82,19 +82,20 @@ On Windows `x86_64-pc-windows-gnu` environments, rustc automatically appends `-l
 | Verification Gate | Target | Result | Evidence |
 | :--- | :--- | :---: | :--- |
 | **Formatting** | `cargo fmt --check` | **PASS** | 0 formatting violations across codebase |
-| **Clippy Linter** | `cargo clippy --all-targets --all-features -- -D warnings` | **PASS** | 0 warnings, strict warnings-as-errors compliance |
-| **Unit Tests** | `src/lib.rs` (11 tests) | **PASS** | 11 passed (security, sanitize, retry, calameo signature) |
+| **Clippy Linter** | `cargo clippy --all-targets --all-features -- -D warnings` | **PASS** | 0 warnings, strict warnings-as-errors compliance (Rust 2024) |
+| **Unit Tests** | `src/lib.rs` (14 tests) | **PASS** | 14 passed (security, sanitize, retry, calameo signature, diagnostic bundle, quality reporting) |
 | **Download Engine** | `tests/download_engine_tests.rs` (5 tests) | **PASS** | 5 passed (job state, retry backoff, manifest, cache integrity, direct PDF optimization) |
-| **Network WireMock Tests** | `tests/network_integration_tests.rs` (7 tests) | **PASS** | 7 passed (200 streaming, chunked, 429 Retry-After, 500 transient, permanent 404/403, 0-byte, body limits) |
-| **PDF Generation** | `tests/pdf_generation_tests.rs` (2 tests) | **PASS** | 2 passed (assembly, structural validation, page count mismatch) |
+| **Network WireMock Tests** | `tests/network_integration_tests.rs` (10 tests) | **PASS** | 10 passed (200 streaming, chunked, 429 Retry-After seconds & HTTP-date, 500/502/503 transient recovery, redirect limit loop, permanent 404/403, 0-byte, body limits) |
+| **PDF Generation** | `tests/pdf_generation_tests.rs` (6 tests) | **PASS** | 6 passed (single/multi-page, page count mismatch, mixed orientation MediaBox geometry preservation, mixed JPEG+PNG formats, Unicode & 500+ char long titles, 100-page scale) |
 | **Property Tests** | `tests/property_tests.rs` (4 proptests) | **PASS** | 4 passed (sanitized filenames, reserved names, path confinement) |
 | **Provider Tests** | `tests/provider_calameo_tests.rs` (5 tests) | **PASS** | 5 passed (detection, metadata JSON, HTML fallback, signatures) |
 | **Regression Tests** | `tests/regression_tests.rs` (7 tests) | **PASS** | 7 passed (Directive 40 named regressions: page order, 001 not skipped, HTML 200 rejection, 429 retry, landscape ratio, partial output protection, redirect SSRF) |
-| **Resume & Integrity Tests** | `tests/resume_tests.rs` (2 tests) | **PASS** | 2 passed (valid cache reuse, corrupted cache detection & re-download) |
+| **Resume & Integrity Tests** | `tests/resume_tests.rs` (3 tests) | **PASS** | 3 passed (valid cache reuse, corrupted cache detection & re-download, all-cached skipping network) |
 | **Security Tests** | `tests/security_tests.rs` (5 tests) | **PASS** | 5 passed (localhost SSRF, RFC1918 SSRF, scheme filters, traversal) |
-| **Synthetic Benchmarks** | `benches/synthetic_bench.rs` (10, 100, 500 pages) | **PASS** | 10p: 27.2ms (368 p/s), 100p: 425.4ms (235 p/s), 500p: 697.9ms (716 p/s) |
+| **Synthetic Benchmarks** | `benches/synthetic_bench.rs` (10, 100, 500 pages) | **PASS** | 10p: 26.7ms (374 p/s), 100p: 448.1ms (223 p/s), 500p: 695.7ms (718 p/s) |
 | **Release Build** | `cargo build --release` | **PASS** | Compiled optimized `target/release/docdownloader.exe` |
-| **CLI Verification** | `docdownloader.exe --help` | **PASS** | Help text and all subcommands functional |
+| **CLI Verification** | `docdownloader.exe --help` | **PASS** | All subcommands (`download`, `inspect`, `batch`, `diagnostic`, `cache`, `serve`) verified |
+| **Supply Chain Security** | `cargo-deny` config (`deny.toml`) | **PASS** | Configured license checks, security advisories, and dependency bans |
 | **Unified Script** | `verify.ps1` / `verify.sh` | **PASS** | End-to-end multi-gate execution successful |
 
 ---

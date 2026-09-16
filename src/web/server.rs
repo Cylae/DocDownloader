@@ -1,6 +1,6 @@
+use axum::Router;
 use axum::response::Html;
 use axum::routing::{get, post};
-use axum::Router;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -10,7 +10,7 @@ use tower_http::cors::{Any, CorsLayer};
 use crate::core::engine::DownloadEngine;
 use crate::core::error::DocDownloaderError;
 use crate::web::handlers::{
-    cancel_handler, download_handler, file_handler, inspect_handler, sse_handler, AppState,
+    AppState, cancel_handler, download_handler, file_handler, inspect_handler, sse_handler,
 };
 use crate::web::security::{csp_layer, frame_options_layer, nosniff_layer};
 use crate::web::static_assets::INDEX_HTML;

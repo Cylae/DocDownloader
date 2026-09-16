@@ -1,10 +1,10 @@
+use docdownloader::providers::PublicationProvider;
+use docdownloader::providers::calameo::CalameoProvider;
 use docdownloader::providers::calameo::models::CalameoResponse;
 use docdownloader::providers::calameo::parser::{
     parse_calameo_book_response, parse_calameo_reader_html,
 };
 use docdownloader::providers::calameo::signature::sign_calameo_asset_url;
-use docdownloader::providers::calameo::CalameoProvider;
-use docdownloader::providers::PublicationProvider;
 use url::Url;
 
 #[test]

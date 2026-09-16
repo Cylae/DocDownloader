@@ -1,6 +1,6 @@
+use docdownloader::core::Publication;
 use docdownloader::core::document::AssetType;
 use docdownloader::core::job::CompletedPageAsset;
-use docdownloader::core::Publication;
 use docdownloader::pdf::PdfBuilder;
 use std::time::Instant;
 

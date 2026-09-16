@@ -73,10 +73,10 @@ impl PublicationProvider for CalameoProvider {
 
     fn extract_id(&self, url: &Url) -> Result<String, DocDownloaderError> {
         // 1. Check path regex
-        if let Some(caps) = self.url_regex.captures(url.as_str()) {
-            if let Some(m) = caps.get(1) {
-                return Ok(m.as_str().to_ascii_lowercase());
-            }
+        if let Some(caps) = self.url_regex.captures(url.as_str())
+            && let Some(m) = caps.get(1)
+        {
+            return Ok(m.as_str().to_ascii_lowercase());
         }
 
         // 2. Check query parameter `bkcode`

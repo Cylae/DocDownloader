@@ -204,3 +204,108 @@ async fn test_wiremock_content_length_exceeded_safety_limit() {
         other => panic!("Expected PageCorrupt, got: {other:?}"),
     }
 }
+
+#[tokio::test]
+async fn test_wiremock_502_and_503_transient_recovery() {
+    let mock_server = MockServer::start().await;
+
+    // Fail once with 502, then 503, then succeed with 200
+    Mock::given(method("GET"))
+        .and(path("/gateway_err.jpg"))
+        .respond_with(ResponseTemplate::new(502))
+        .up_to_n_times(1)
+        .mount(&mock_server)
+        .await;
+
+    Mock::given(method("GET"))
+        .and(path("/gateway_err.jpg"))
+        .respond_with(ResponseTemplate::new(503))
+        .up_to_n_times(1)
+        .mount(&mock_server)
+        .await;
+
+    Mock::given(method("GET"))
+        .and(path("/gateway_err.jpg"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_bytes(b"RECOVERED_AFTER_502_503".to_vec()),
+        )
+        .mount(&mock_server)
+        .await;
+
+    let client = HttpClient::new_test_client().expect("client");
+    let url = format!("{}/gateway_err.jpg", mock_server.uri());
+
+    let resp = client
+        .get_with_retry(&url, None)
+        .await
+        .expect("should succeed after 502 and 503 retries");
+    assert_eq!(resp.status(), 200);
+}
+
+#[tokio::test]
+async fn test_wiremock_429_http_date_retry_after() {
+    let mock_server = MockServer::start().await;
+
+    // Return 429 with an HTTP-date in the immediate past to trigger immediate retry
+    Mock::given(method("GET"))
+        .and(path("/date_rate_limited.jpg"))
+        .respond_with(
+            ResponseTemplate::new(429)
+                .append_header("Retry-After", "Wed, 21 Oct 2015 07:28:00 GMT")
+                .set_body_string("Rate limited"),
+        )
+        .up_to_n_times(1)
+        .mount(&mock_server)
+        .await;
+
+    Mock::given(method("GET"))
+        .and(path("/date_rate_limited.jpg"))
+        .respond_with(ResponseTemplate::new(200).set_body_bytes(b"RECOVERED_DATE".to_vec()))
+        .mount(&mock_server)
+        .await;
+
+    let client = HttpClient::new_test_client().expect("client");
+    let url = format!("{}/date_rate_limited.jpg", mock_server.uri());
+
+    let resp = client
+        .get_with_retry(&url, None)
+        .await
+        .expect("should recover after 429 with HTTP Date");
+    assert_eq!(resp.status(), 200);
+}
+
+#[tokio::test]
+async fn test_wiremock_redirect_limit_enforced() {
+    let mock_server = MockServer::start().await;
+
+    // Set up redirect loop
+    Mock::given(method("GET"))
+        .and(path("/loop1"))
+        .respond_with(
+            ResponseTemplate::new(302)
+                .append_header("Location", format!("{}/loop2", mock_server.uri())),
+        )
+        .mount(&mock_server)
+        .await;
+
+    Mock::given(method("GET"))
+        .and(path("/loop2"))
+        .respond_with(
+            ResponseTemplate::new(302)
+                .append_header("Location", format!("{}/loop1", mock_server.uri())),
+        )
+        .mount(&mock_server)
+        .await;
+
+    let client = HttpClient::new_test_client().expect("client");
+    let url = format!("{}/loop1", mock_server.uri());
+
+    let err = client
+        .get_with_retry(&url, None)
+        .await
+        .expect_err("redirect loop must fail");
+    assert!(
+        matches!(err, DocDownloaderError::InternalInvariantViolation { .. }),
+        "Expected failure on redirect loop, got: {err:?}"
+    );
+}

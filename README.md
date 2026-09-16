@@ -89,9 +89,10 @@ docdownloader download "https://www.calameo.com/read/0061133461a5012e8961a" \
 - `-f, --force`: Overwrite existing output file if it already exists.
 - `-q, --quiet`: Suppress interactive progress bars.
 - `-v, --verbose`: Enable diagnostic trace logging.
+- `--diagnostic <PATH>`: Export sanitized diagnostic JSON bundle on completion or failure.
 
 ### 2. Inspect Command
-Resolve metadata, total page count, and candidate asset dimensions without downloading pages:
+Resolve metadata, total page count, candidate asset dimensions, and page quality breakdown without downloading pages:
 
 ```bash
 docdownloader inspect "https://www.calameo.com/read/0061133461a5012e8961a"
@@ -99,18 +100,40 @@ docdownloader inspect "https://www.calameo.com/read/0061133461a5012e8961a"
 
 *Example Output:*
 ```text
-Publication Information:
-  Provider:       calameo
-  ID:             0061133461a5012e8961a
-  Title:          Sample Corporate Report 2025
-  Author:         Acme Corp
-  Pages:          48
-  Direct PDF:     None
-  First Page Dim: 1125x1591
-  Candidate Assets: 48
+Provider: calameo
+Title: Le Condensé N°4
+Author/Publisher: Saint Joseph Lannion
+Publication ID: 0061133461a5012e8961a
+Pages: 2
+Document Geometry: 595x842 pt
+Best Discovered Quality: 595x842 px (ImageJpeg)
+Direct PDF: Unavailable
+Extraction Method: High-resolution page assets
+Thumbnail: http://i.calameoassets.com/211022160601-3b723dd9df70eeb8937f6e31fa1d3668/p1.jpg
+
+Page Quality Breakdown:
+  1–2       595×842  ImageJpeg
 ```
 
-### 3. Cache Management
+### 3. Batch Mode
+Batch download and reconstruct multiple publications from a URL list file (supports `#` comments):
+
+```bash
+docdownloader batch publications.txt --concurrency 6 --output-dir ./downloads
+```
+
+### 4. Diagnostic Bundle Export
+Generate a sanitized JSON diagnostic report (Directive 60) containing tool version, provider, sanitized URL (with all authentication cookies, tokens, and credentials stripped), stage reached, and HTTP status history:
+
+```bash
+# Print to stdout
+docdownloader diagnostic "https://www.calameo.com/read/0061133461a5012e8961a"
+
+# Export to file
+docdownloader diagnostic "https://www.calameo.com/read/0061133461a5012e8961a" -o diag.json
+```
+
+### 5. Cache Management
 View or purge temporary publication caches:
 
 ```bash
@@ -118,10 +141,10 @@ View or purge temporary publication caches:
 docdownloader cache status
 
 # Clean expired or all temporary caches
-docdownloader cache clean
+docdownloader cache clean --all
 ```
 
-### 4. Local Web UI
+### 6. Local Web UI
 Launch an embedded, privacy-focused Web UI running locally:
 
 ```bash
@@ -132,7 +155,7 @@ Then open `http://127.0.0.1:8080` in your web browser.
 - Real-time Server-Sent Events (SSE) streaming download progress.
 - Clean, semantic HTML5/CSS interface with responsive dark mode.
 
-### 5. Process Exit Codes
+### 7. Process Exit Codes
 
 | Exit Code | Classification | Description |
 | :---: | :--- | :--- |
@@ -159,10 +182,12 @@ src/
 ├── lib.rs                   # Library interface and public API
 ├── cli/                     # CLI argument parsing, commands, and progress rendering
 ├── core/
+│   ├── diagnostic.rs        # Sanitized diagnostic bundle generation (Directive 60)
 │   ├── document.rs          # Publication & PageDescriptor domain models
 │   ├── engine.rs            # Concurrent bounded download & assembly engine
 │   ├── error.rs             # Structured DocDownloaderError taxonomy
-│   └── job.rs               # JobState lifecycle and progress event models
+│   ├── job.rs               # JobState lifecycle and progress event models
+│   └── quality.rs           # Multi-tier page quality reporting (Directive 65)
 ├── network/
 │   ├── client.rs            # Hardened Reqwest client (redirects, stream limits)
 │   ├── retry.rs             # Exponential backoff, jitter, and Retry-After parsing

@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use tokio::sync::{watch, Semaphore};
+use std::sync::atomic::{AtomicBool, Ordering};
+use tokio::sync::{Semaphore, watch};
 use url::Url;
 
 use crate::core::document::{AssetCandidate, Publication};
@@ -223,18 +223,18 @@ impl DownloadEngine {
         let mut valid_completed = BTreeMap::new();
         for (page_idx, asset) in &manifest.completed_pages {
             let asset_path = pub_dir.join(&asset.relative_path);
-            if asset_path.exists() {
-                if let Ok(meta) = inspect_and_validate_asset(&asset_path, *page_idx) {
-                    if meta.width == asset.width && meta.height == asset.height {
-                        valid_completed.insert(*page_idx, asset.clone());
-                        listener.on_page_completed(
-                            *page_idx,
-                            publication.page_count,
-                            asset.byte_size,
-                            true,
-                        );
-                    }
-                }
+            if asset_path.exists()
+                && let Ok(meta) = inspect_and_validate_asset(&asset_path, *page_idx)
+                && meta.width == asset.width
+                && meta.height == asset.height
+            {
+                valid_completed.insert(*page_idx, asset.clone());
+                listener.on_page_completed(
+                    *page_idx,
+                    publication.page_count,
+                    asset.byte_size,
+                    true,
+                );
             }
         }
         manifest.completed_pages = valid_completed;

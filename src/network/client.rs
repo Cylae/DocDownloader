@@ -5,8 +5,8 @@ use std::time::Duration;
 use url::Url;
 
 use crate::core::error::DocDownloaderError;
-use crate::network::retry::{parse_retry_after, RetryPolicy};
-use crate::network::security::{validate_url_security, SecureDnsResolver};
+use crate::network::retry::{RetryPolicy, parse_retry_after};
+use crate::network::security::{SecureDnsResolver, validate_url_security};
 use crate::storage::atomic::AtomicFileWriter;
 
 /// Default User-Agent string used for transparent identification.
@@ -233,15 +233,15 @@ impl HttpClient {
         let mut resp = self.get_with_retry(url_str, extra_headers).await?;
 
         // Guard against absurd Content-Length before downloading
-        if let Some(content_len) = resp.content_length() {
-            if content_len > max_bytes {
-                return Err(DocDownloaderError::PageCorrupt {
-                    page_index: 0,
-                    reason: format!(
-                        "Content-Length {content_len} exceeds maximum safety limit of {max_bytes} bytes"
-                    ),
-                });
-            }
+        if let Some(content_len) = resp.content_length()
+            && content_len > max_bytes
+        {
+            return Err(DocDownloaderError::PageCorrupt {
+                page_index: 0,
+                reason: format!(
+                    "Content-Length {content_len} exceeds maximum safety limit of {max_bytes} bytes"
+                ),
+            });
         }
 
         let mut hasher = Sha256::new();

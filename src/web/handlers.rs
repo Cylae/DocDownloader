@@ -1,15 +1,15 @@
+use axum::Json;
 use axum::extract::{Path as AxumPath, State};
 use axum::http::StatusCode;
-use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::Response;
-use axum::Json;
+use axum::response::sse::{Event, KeepAlive, Sse};
 use futures_util::stream::Stream;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::convert::Infallible;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::sync::{broadcast, watch, Mutex};
+use tokio::sync::{Mutex, broadcast, watch};
 use url::Url;
 
 use crate::core::engine::{DownloadEngine, ProgressListener};

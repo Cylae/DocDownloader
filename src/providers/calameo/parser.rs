@@ -130,13 +130,13 @@ pub fn parse_calameo_book_response(
         .features
         .as_ref()
         .and_then(|f| f.subscribers.as_ref())
+        && sub.enabled == Some(true)
+        && sub.access == Some(false)
     {
-        if sub.enabled == Some(true) && sub.access == Some(false) {
-            return Err(DocDownloaderError::AccessRestricted {
-                id: publication_id.to_string(),
-                reason: "Publication is restricted to subscribers".to_string(),
-            });
-        }
+        return Err(DocDownloaderError::AccessRestricted {
+            id: publication_id.to_string(),
+            reason: "Publication is restricted to subscribers".to_string(),
+        });
     }
 
     let doc = content

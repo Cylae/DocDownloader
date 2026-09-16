@@ -1,7 +1,7 @@
 use console::Term;
 use indicatif::{ProgressBar, ProgressStyle};
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
 use crate::core::engine::ProgressListener;
 use crate::core::job::JobState;

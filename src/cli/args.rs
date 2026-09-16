@@ -51,6 +51,10 @@ pub struct Cli {
     /// Enable verbose diagnostic output
     #[arg(short, long, global = true)]
     pub verbose: bool,
+
+    /// Optional file path to export a sanitized diagnostic bundle
+    #[arg(long, global = true)]
+    pub diagnostic: Option<PathBuf>,
 }
 
 #[derive(Subcommand, Debug)]
@@ -58,8 +62,14 @@ pub enum Commands {
     /// Download a publication and reconstruct offline PDF
     Download(DownloadArgs),
 
-    /// Inspect publication metadata without downloading
+    /// Inspect publication metadata and quality breakdown without downloading
     Inspect(InspectArgs),
+
+    /// Batch download multiple publications from a URL list file
+    Batch(BatchArgs),
+
+    /// Export a sanitized diagnostic bundle for troubleshooting
+    Diagnostic(DiagnosticArgs),
 
     /// Manage local document cache
     Cache(CacheArgs),
@@ -78,6 +88,22 @@ pub struct DownloadArgs {
 pub struct InspectArgs {
     /// Target publication URL to inspect
     pub url: String,
+}
+
+#[derive(Args, Debug)]
+pub struct BatchArgs {
+    /// Text file containing publication URLs (one per line)
+    pub file: PathBuf,
+}
+
+#[derive(Args, Debug)]
+pub struct DiagnosticArgs {
+    /// Target publication URL to diagnose
+    pub url: String,
+
+    /// Destination path for diagnostic JSON bundle (defaults to stdout)
+    #[arg(short, long)]
+    pub output: Option<PathBuf>,
 }
 
 #[derive(Args, Debug)]

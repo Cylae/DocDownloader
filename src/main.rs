@@ -124,15 +124,14 @@ async fn run_cli(cli: Cli, cancel_rx: watch::Receiver<bool>) -> Result<(), DocDo
             if let Some(geom) = pub_info.geometry {
                 println!("Document Geometry: {}x{} pt", geom.width, geom.height);
             }
-            if let Some(first_page) = pub_info.pages.first() {
-                if let Some(best) = first_page.best_candidate() {
-                    if let Some(geom) = best.geometry {
-                        println!(
-                            "Best Discovered Quality: {}x{} px ({:?})",
-                            geom.width, geom.height, best.asset_type
-                        );
-                    }
-                }
+            if let Some(first_page) = pub_info.pages.first()
+                && let Some(best) = first_page.best_candidate()
+                && let Some(geom) = best.geometry
+            {
+                println!(
+                    "Best Discovered Quality: {}x{} px ({:?})",
+                    geom.width, geom.height, best.asset_type
+                );
             }
             let direct_pdf_status = match pub_info.direct_pdf_url {
                 Some(ref url) => format!("Available ({url})"),
@@ -147,6 +146,123 @@ async fn run_cli(cli: Cli, cancel_rx: watch::Receiver<bool>) -> Result<(), DocDo
             println!("Extraction Method: {extraction_method}");
             if let Some(ref thumb) = pub_info.thumbnail_url {
                 println!("Thumbnail: {thumb}");
+            }
+
+            let report = docdownloader::core::quality::QualityReport::from_publication(&pub_info);
+            println!("\n{report}");
+        }
+        Commands::Batch(args) => {
+            let content = std::fs::read_to_string(&args.file).map_err(|e| {
+                DocDownloaderError::FileSystemError {
+                    path: args.file.clone(),
+                    reason: format!("Failed to read batch file: {e}"),
+                }
+            })?;
+
+            let urls: Vec<String> = content
+                .lines()
+                .map(|line| line.trim())
+                .filter(|line| !line.is_empty() && !line.starts_with('#'))
+                .map(|s| s.to_string())
+                .collect();
+
+            if urls.is_empty() {
+                println!("No valid URLs found in {}", args.file.display());
+                return Ok(());
+            }
+
+            println!(
+                "=== Starting Batch Download of {} publication(s) ===",
+                urls.len()
+            );
+            let mut succeeded = 0;
+            let mut failed = 0;
+
+            for (idx, raw_url) in urls.iter().enumerate() {
+                println!("\n[{}/{}] Processing: {raw_url}", idx + 1, urls.len());
+                let parsed_url = match Url::parse(raw_url) {
+                    Ok(u) => u,
+                    Err(e) => {
+                        eprintln!("  Error: Invalid URL '{raw_url}': {e}");
+                        failed += 1;
+                        continue;
+                    }
+                };
+
+                let listener = CliProgressReporter::new(cli.quiet);
+                let out_dir = cli.output_dir.as_deref();
+
+                match engine
+                    .download(&parsed_url, out_dir, listener, cancel_rx.clone())
+                    .await
+                {
+                    Ok(path) => {
+                        println!("  Successfully saved: {}", path.display());
+                        succeeded += 1;
+                    }
+                    Err(err) => {
+                        eprintln!("  Failed to process {raw_url}: {err}");
+                        failed += 1;
+                    }
+                }
+            }
+
+            println!("\n=== Batch Summary ===");
+            println!("  Total:     {}", urls.len());
+            println!("  Succeeded: {succeeded}");
+            println!("  Failed:    {failed}");
+
+            if failed > 0 {
+                return Err(DocDownloaderError::InternalInvariantViolation {
+                    reason: format!("Batch completed with {failed} failure(s)"),
+                });
+            }
+        }
+        Commands::Diagnostic(args) => {
+            let parsed_url = Url::parse(&args.url).map_err(|e| DocDownloaderError::InvalidUrl {
+                url: args.url.clone(),
+                reason: e.to_string(),
+            })?;
+
+            let provider_name = match registry.find_provider(&parsed_url) {
+                Some(p) => p.name(),
+                None => "unknown",
+            };
+
+            let mut bundle =
+                docdownloader::core::diagnostic::DiagnosticBundle::new(provider_name, &parsed_url);
+            bundle.set_stage("ProbingProvider");
+
+            match engine.inspect(&parsed_url).await {
+                Ok(pub_info) => {
+                    bundle.set_stage("MetadataResolved");
+                    bundle.discovered_page_count = Some(pub_info.page_count);
+                    bundle.direct_pdf_available = pub_info.direct_pdf_url.is_some();
+                    bundle.selected_strategy = Some(if pub_info.direct_pdf_url.is_some() {
+                        "DirectPdf".to_string()
+                    } else {
+                        "PageAssets".to_string()
+                    });
+                    bundle.record_http_status(200);
+                }
+                Err(err) => {
+                    bundle.set_error(&err);
+                }
+            }
+
+            match args.output {
+                Some(out_path) => {
+                    bundle.save_to_file(&out_path)?;
+                    println!("Diagnostic bundle exported to: {}", out_path.display());
+                }
+                None => {
+                    let json = bundle.to_json().map_err(|e| {
+                        DocDownloaderError::InternalInvariantViolation {
+                            reason: format!("Failed to serialize diagnostic: {e}"),
+                        }
+                    })?;
+                    println!("{json}");
+                }
             }
         }
         Commands::Cache(args) => {
