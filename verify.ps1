@@ -22,14 +22,35 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-Write-Host "=== Step 4: Synthetic Benchmarks Execution ===" -ForegroundColor Cyan
+Write-Host "=== Step 4: Security & Supply Chain Audit ===" -ForegroundColor Cyan
+if (Get-Command cargo-audit -ErrorAction SilentlyContinue) {
+    cargo audit
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "cargo audit failed"
+        exit 1
+    }
+} else {
+    Write-Host "cargo-audit not installed; skipping advisory audit" -ForegroundColor Yellow
+}
+
+if (Get-Command cargo-deny -ErrorAction SilentlyContinue) {
+    cargo-deny check
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "cargo-deny check failed"
+        exit 1
+    }
+} else {
+    Write-Host "cargo-deny not installed; skipping license and dependency checks" -ForegroundColor Yellow
+}
+
+Write-Host "=== Step 5: Synthetic Benchmarks Execution ===" -ForegroundColor Cyan
 cargo bench --bench synthetic_bench
 if ($LASTEXITCODE -ne 0) {
     Write-Error "cargo bench failed"
     exit 1
 }
 
-Write-Host "=== Step 5: Release Build Smoke Test ===" -ForegroundColor Cyan
+Write-Host "=== Step 6: Release Build Smoke Test ===" -ForegroundColor Cyan
 cargo build --release
 if ($LASTEXITCODE -ne 0) {
     Write-Error "cargo build --release failed"

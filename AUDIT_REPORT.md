@@ -75,6 +75,14 @@ On Windows `x86_64-pc-windows-gnu` environments, rustc automatically appends `-l
 - **Problem**: If a publisher exposes a public direct PDF URL, attempting to acquire it as an individual page asset would fail because the multi-page PDF cannot be parsed as a raw single-page image.
 - **Remediation**: Separated direct PDF acquisition into a pre-flight whole-document download step in `DownloadEngine`. Direct PDF downloads are streamed atomically and structurally verified with `validate_pdf_document`. If unavailable, corrupt, or invalid, the engine transparently falls back to concurrent single-page asset acquisition.
 
+### FINDING-7: Strict Production Panic Hygiene
+- **Severity**: LOW / DEFENSE-IN-DEPTH
+- **Category**: Robustness / Code Quality
+- **Status**: FIXED
+- **Location**: `src/providers/calameo/mod.rs`, `src/providers/calameo/parser.rs`
+- **Problem**: Provider URL detection and HTML reader fallback parsing previously contained `.unwrap()` calls on `Regex::new(...)` constructions.
+- **Remediation**: Refactored `CalameoProvider` URL matching and ID extraction to use zero-allocation, panic-free character-level ASCII hex validation (`len == 21 && chars().all(is_ascii_hexdigit)`). Replaced regex compilation in HTML parsing with typed error mapping (`DocDownloaderError::InternalInvariantViolation`). Result: 100% of production code paths (network, filesystem, parsing, image processing, PDF construction) are completely free of `unwrap()`, `expect()`, `panic!()`, `todo!()`, and `unimplemented!()`.
+
 ---
 
 ## Validation Matrix
@@ -92,19 +100,20 @@ On Windows `x86_64-pc-windows-gnu` environments, rustc automatically appends `-l
 | **Regression Tests** | `tests/regression_tests.rs` (7 tests) | **PASS** | 7 passed (Directive 40 named regressions: page order, 001 not skipped, HTML 200 rejection, 429 retry, landscape ratio, partial output protection, redirect SSRF) |
 | **Resume & Integrity Tests** | `tests/resume_tests.rs` (3 tests) | **PASS** | 3 passed (valid cache reuse, corrupted cache detection & re-download, all-cached skipping network) |
 | **Security Tests** | `tests/security_tests.rs` (5 tests) | **PASS** | 5 passed (localhost SSRF, RFC1918 SSRF, scheme filters, traversal) |
-| **Synthetic Benchmarks** | `benches/synthetic_bench.rs` (10, 100, 500 pages) | **PASS** | 10p: 26.7ms (374 p/s), 100p: 448.1ms (223 p/s), 500p: 695.7ms (718 p/s) |
+| **Supply Chain Security** | `cargo audit` & `cargo-deny check` | **PASS** | 0 vulnerabilities, 0 license errors, 0 banned packages |
+| **Panic Hygiene** | Static grep across `src/` | **PASS** | 0 unwrap/expect/panic in production paths |
+| **Synthetic Benchmarks** | `benches/synthetic_bench.rs` (10, 100, 500 pages) | **PASS** | 10p: 24.9ms (400 p/s), 100p: 414.8ms (241 p/s), 500p: 659.7ms (758 p/s) |
 | **Release Build** | `cargo build --release` | **PASS** | Compiled optimized `target/release/docdownloader.exe` |
 | **CLI Verification** | `docdownloader.exe --help` | **PASS** | All subcommands (`download`, `inspect`, `batch`, `diagnostic`, `cache`, `serve`) verified |
-| **Supply Chain Security** | `cargo-deny` config (`deny.toml`) | **PASS** | Configured license checks, security advisories, and dependency bans |
-| **Unified Script** | `verify.ps1` / `verify.sh` | **PASS** | End-to-end multi-gate execution successful |
+| **Unified Script** | `verify.ps1` / `verify.sh` | **PASS** | End-to-end 6-gate execution successful |
 
 ---
 
 ## Benchmarks & Performance
 Synthetic benchmark suite executed via `benches/synthetic_bench.rs` on native release profile:
 
-- **10-page document**: 27.2 ms total build time (14.44 KB PDF, 367.8 pages/sec)
-- **100-page document**: 425.4 ms total build time (141.50 KB PDF, 235.1 pages/sec)
-- **500-page document**: 697.9 ms total build time (707.72 KB PDF, 716.5 pages/sec)
+- **10-page document**: 24.9 ms total build time (14.45 KB PDF, 400.1 pages/sec)
+- **100-page document**: 414.8 ms total build time (141.51 KB PDF, 241.1 pages/sec)
+- **500-page document**: 659.7 ms total build time (707.73 KB PDF, 757.9 pages/sec)
 
 Memory consumption is strictly bounded because raw JPEG streams are copied directly into PDF stream objects without uncompressed bitmap buffering.
