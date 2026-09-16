@@ -67,7 +67,7 @@ pub const INDEX_HTML: &str = r##"<!DOCTYPE html>
 
     <div class="card">
       <div class="form-group">
-        <input type="text" id="urlInput" placeholder="Paste Calaméo reader URL (e.g. https://www.calameo.com/read/...)" autofocus />
+        <input type="text" id="urlInput" placeholder="Paste publication URL (Calaméo, Issuu, SlideShare, Scribd)..." autofocus />
         <button id="inspectBtn" onclick="inspectUrl()">Inspect</button>
       </div>
 

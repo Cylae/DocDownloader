@@ -44,7 +44,12 @@ opt-level = 3
 lto = false
 panic = "unwind"
 
-[profile.bench]
+[profile.dev.package.image]
 opt-level = 3
-lto = false
+
+[profile.dev.package.miniz_oxide]
+opt-level = 3
+
+[profile.dev.package.flate2]
+opt-level = 3
 

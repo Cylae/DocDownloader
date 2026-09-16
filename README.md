@@ -25,20 +25,28 @@ DocDownloader accepts a supported interactive publication/reader URL and, when t
 | Provider | URL Detection | Metadata Extraction | Page Manifest | Best Quality Selection | Resume & Cache | Direct PDF Optimization | Status |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **Calaméo** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (when public) | **Stable** |
-| **Issuu** | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | Planned |
-| **SlideShare** | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | Planned |
-| **Scribd** | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | Planned |
+| **Issuu** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (when public) | **Stable** |
+| **SlideShare** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (when public) | **Stable** |
+| **Scribd** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (when public) | **Stable** |
 
 ---
 
 ## Supported URL Examples
 
-DocDownloader supports standard, mobile, and authenticated query variants of Calaméo public reader links:
+DocDownloader supports standard, embed, and query variants across all supported publication platforms:
 
-- Reader URL: `https://www.calameo.com/read/0061133461a5012e8961a`
-- Books URL: `https://www.calameo.com/books/0061133461a5012e8961a`
-- With query parameters & access keys: `https://www.calameo.com/read/0061133461a5012e8961a?authid=xyz&page=1`
-- Shortened / Custom domain aliases: `https://en.calameo.com/read/0061133461a5012e8961a`
+- **Calaméo**:
+  - `https://www.calameo.com/read/0061133461a5012e8961a`
+  - `https://www.calameo.com/books/0061133461a5012e8961a`
+- **Issuu**:
+  - `https://issuu.com/username/docs/magazine_slug`
+  - `https://e.issuu.com/embed.html?d=magazine_slug&u=username`
+- **SlideShare**:
+  - `https://www.slideshare.net/author/presentation-slug`
+  - `https://www.slideshare.net/slideshow/embed_code/key/abcdef123`
+- **Scribd**:
+  - `https://www.scribd.com/document/123456789/Title-Slug`
+  - `https://www.scribd.com/embeds/123456789/content?start_page=1&view_mode=scroll`
 
 ---
 

@@ -1,0 +1,37 @@
+{
+  "document": {
+    "publicationId": "abcdef0123456789abcdef0123456789",
+    "revisionId": "240101120000",
+    "title": "Sample Issuu Quarterly Report 2026",
+    "description": "Comprehensive quarterly report publication.",
+    "pageCount": 4,
+    "coverUrl": "https://image.isu.pub/240101120000-abcdef0123456789abcdef0123456789/jpg/page_1.jpg",
+    "isPrivate": false,
+    "pages": [
+      {
+        "pageNumber": 1,
+        "imageUri": "page_1.jpg",
+        "width": 1200,
+        "height": 1600
+      },
+      {
+        "pageNumber": 2,
+        "imageUri": "page_2.jpg",
+        "width": 1200,
+        "height": 1600
+      },
+      {
+        "pageNumber": 3,
+        "imageUri": "page_3.jpg",
+        "width": 1200,
+        "height": 1600
+      },
+      {
+        "pageNumber": 4,
+        "imageUri": "page_4.jpg",
+        "width": 1200,
+        "height": 1600
+      }
+    ]
+  }
+}

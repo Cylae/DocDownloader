@@ -261,3 +261,31 @@ async fn test_direct_pdf_optimization_and_fallback() {
     assert!(result.exists());
     validate_pdf_document(&result, 2).expect("direct PDF passes 2-page validation");
 }
+
+#[test]
+fn test_registry_dispatches_all_supported_providers() {
+    use docdownloader::providers::ProviderRegistry;
+    use url::Url;
+
+    let registry = ProviderRegistry::new();
+
+    let calameo_url = Url::parse("https://www.calameo.com/read/0061133461a5012e8961a").unwrap();
+    let issuu_url = Url::parse("https://issuu.com/magazine/docs/spring2026").unwrap();
+    let slideshare_url = Url::parse("https://www.slideshare.net/author/deck-slug").unwrap();
+    let scribd_url = Url::parse("https://www.scribd.com/document/123456789/Title").unwrap();
+
+    let calameo = registry.find_provider(&calameo_url).expect("calameo provider");
+    assert_eq!(calameo.name(), "calameo");
+
+    let issuu = registry.find_provider(&issuu_url).expect("issuu provider");
+    assert_eq!(issuu.name(), "issuu");
+
+    let slideshare = registry.find_provider(&slideshare_url).expect("slideshare provider");
+    assert_eq!(slideshare.name(), "slideshare");
+
+    let scribd = registry.find_provider(&scribd_url).expect("scribd provider");
+    assert_eq!(scribd.name(), "scribd");
+
+    let unknown_url = Url::parse("https://example.com/unsupported").unwrap();
+    assert!(registry.find_provider(&unknown_url).is_none());
+}

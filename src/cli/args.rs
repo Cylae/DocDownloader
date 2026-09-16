@@ -80,7 +80,7 @@ pub enum Commands {
 
 #[derive(Args, Debug)]
 pub struct DownloadArgs {
-    /// Target publication URL (e.g. Calaméo reader link)
+    /// Target publication URL (e.g. Calaméo, Issuu, SlideShare, Scribd)
     pub url: String,
 }
 

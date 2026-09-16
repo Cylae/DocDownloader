@@ -1,0 +1,13 @@
+{
+  "version": "1.0",
+  "type": "rich",
+  "provider_name": "SlideShare",
+  "provider_url": "https://www.slideshare.net",
+  "title": "Cloud Native Architecture Design Patterns",
+  "author_name": "techarchitect",
+  "author_url": "https://www.slideshare.net/techarchitect",
+  "slideshow_id": 98765432,
+  "total_slides": 5,
+  "thumbnail": "https://image.slidesharecdn.com/cloud-native-240101-1234/95/cloud-native-1-638.jpg?cb=1700000000",
+  "html": "<iframe src=\"https://www.slideshare.net/slideshow/embed_code/key/abcdef123\" width=\"427\" height=\"356\" frameborder=\"0\" marginwidth=\"0\" marginheight=\"0\" scrolling=\"no\" style=\"border:1px solid #CCC; border-width:1px; margin-bottom:5px; max-width: 100%;\" allowfullscreen></iframe>"
+}

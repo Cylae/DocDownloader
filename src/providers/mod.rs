@@ -6,6 +6,9 @@ use crate::core::error::DocDownloaderError;
 use crate::network::client::HttpClient;
 
 pub mod calameo;
+pub mod issuu;
+pub mod scribd;
+pub mod slideshare;
 
 /// Contract that every publication platform adapter must satisfy.
 #[async_trait]
@@ -47,6 +50,9 @@ impl ProviderRegistry {
             providers: Vec::new(),
         };
         registry.register(Box::new(calameo::CalameoProvider::new()));
+        registry.register(Box::new(issuu::IssuuProvider::new()));
+        registry.register(Box::new(slideshare::SlideShareProvider::new()));
+        registry.register(Box::new(scribd::ScribdProvider::new()));
         registry
     }
 

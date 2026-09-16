@@ -9,12 +9,9 @@ use crate::network::retry::{RetryPolicy, parse_retry_after};
 use crate::network::security::{SecureDnsResolver, validate_url_security};
 use crate::storage::atomic::AtomicFileWriter;
 
-/// Default User-Agent string used for transparent identification.
-pub const DEFAULT_USER_AGENT: &str = concat!(
-    "DocDownloader/",
-    env!("CARGO_PKG_VERSION"),
-    " (+https://github.com/Cylae/DocDownloader)"
-);
+/// Default User-Agent string mimicking a modern browser to avoid CDN bot blocks.
+pub const DEFAULT_USER_AGENT: &str =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
 /// Maximum size allowed for a single page download to guard against memory or disk exhaustion (e.g. 50 MB).
 pub const MAX_PAGE_BYTE_LIMIT: u64 = 50 * 1024 * 1024;

@@ -1,0 +1,8 @@
+{
+  "document": {
+    "publicationId": "abcdef0123456789abcdef0123456789",
+    "title": "Confidential Internal Guide",
+    "pageCount": 10,
+    "isPrivate": true
+  }
+}
