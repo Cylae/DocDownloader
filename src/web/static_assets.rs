@@ -124,9 +124,11 @@ pub const INDEX_HTML: &str = r##"<!DOCTYPE html>
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url })
         });
-        const data = await resp.json();
+        const text = await resp.text();
+        let data;
+        try { data = JSON.parse(text); } catch {}
         if (!resp.ok) {
-          throw new Error(data.error || 'Inspection failed');
+          throw new Error((data && data.error) || text || 'Inspection failed');
         }
 
         document.getElementById('pubTitle').innerText = data.title;
@@ -165,9 +167,11 @@ pub const INDEX_HTML: &str = r##"<!DOCTYPE html>
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url })
         });
-        const data = await resp.json();
+        const text = await resp.text();
+        let data;
+        try { data = JSON.parse(text); } catch {}
         if (!resp.ok) {
-          throw new Error(data.error || 'Download failed');
+          throw new Error((data && data.error) || text || 'Download failed');
         }
 
         currentJobId = data.job_id;

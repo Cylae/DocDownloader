@@ -3,8 +3,7 @@ use axum::response::Html;
 use axum::routing::{get, post};
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::Arc;
-use tokio::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tower_http::cors::{Any, CorsLayer};
 
 use crate::core::engine::DownloadEngine;

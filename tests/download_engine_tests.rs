@@ -295,3 +295,91 @@ fn test_registry_dispatches_all_supported_providers() {
     let unknown_url = Url::parse("https://example.com/unsupported").unwrap();
     assert!(registry.find_provider(&unknown_url).is_none());
 }
+
+#[test]
+fn test_atomic_writer_concurrent_isolation() {
+    use docdownloader::storage::atomic::AtomicFileWriter;
+    use tempfile::tempdir;
+
+    let temp = tempdir().expect("tempdir");
+    let target = temp.path().join("collision_test.pdf");
+
+    let writer1 = AtomicFileWriter::new(&target).expect("writer 1");
+    let writer2 = AtomicFileWriter::new(&target).expect("writer 2");
+    let writer3 = AtomicFileWriter::new(&target).expect("writer 3");
+
+    // All temp paths must be distinct
+    assert_ne!(writer1.temp_path(), writer2.temp_path());
+    assert_ne!(writer2.temp_path(), writer3.temp_path());
+    assert_ne!(writer1.temp_path(), writer3.temp_path());
+}
+
+#[tokio::test]
+async fn test_web_api_json_error_contracts() {
+    use axum::Json;
+    use axum::extract::State;
+    use axum::http::StatusCode;
+    use docdownloader::core::engine::DownloadEngine;
+    use docdownloader::network::client::HttpClient;
+    use docdownloader::providers::ProviderRegistry;
+    use docdownloader::storage::cache::CacheManager;
+    use docdownloader::web::handlers::{
+        AppState, DownloadRequest, InspectRequest, download_handler, inspect_handler,
+    };
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex};
+    use tempfile::tempdir;
+
+    let temp = tempdir().expect("tempdir");
+    let client = HttpClient::new_test_client().unwrap();
+    let registry = Arc::new(ProviderRegistry::new());
+    let cache = CacheManager::new(temp.path().join("cache"));
+    let engine = Arc::new(DownloadEngine::new(client, registry, cache, 2, false));
+
+    let state = AppState {
+        engine,
+        jobs: Arc::new(Mutex::new(HashMap::new())),
+    };
+
+    // 1. Inspect with invalid URL
+    let invalid_req = InspectRequest {
+        url: "not-a-url".to_string(),
+    };
+    let inspect_res = inspect_handler(State(state.clone()), Json(invalid_req)).await;
+    assert!(inspect_res.is_err());
+    let (status, Json(err_val)) = inspect_res.unwrap_err();
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(err_val.get("error").is_some());
+    assert!(err_val["error"].as_str().unwrap().contains("Invalid URL"));
+
+    // 2. Download with SSRF URL using production validation
+    let prod_client = HttpClient::default_client().unwrap();
+    let prod_registry = Arc::new(ProviderRegistry::new());
+    let prod_cache = CacheManager::new(temp.path().join("prod_cache"));
+    let prod_engine = Arc::new(DownloadEngine::new(
+        prod_client,
+        prod_registry,
+        prod_cache,
+        2,
+        false,
+    ));
+    let prod_state = AppState {
+        engine: prod_engine,
+        jobs: Arc::new(Mutex::new(HashMap::new())),
+    };
+
+    let ssrf_req = DownloadRequest {
+        url: "http://127.0.0.1:8080/secret".to_string(),
+    };
+    let dl_res = download_handler(State(prod_state), Json(ssrf_req)).await;
+    assert!(dl_res.is_err());
+    let (status, Json(err_val)) = dl_res.unwrap_err();
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(err_val.get("error").is_some());
+    assert!(
+        err_val["error"]
+            .as_str()
+            .unwrap()
+            .contains("private, loopback, or reserved range")
+    );
+}

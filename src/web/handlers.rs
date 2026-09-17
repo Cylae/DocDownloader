@@ -8,12 +8,23 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::convert::Infallible;
 use std::path::PathBuf;
-use std::sync::Arc;
-use tokio::sync::{Mutex, broadcast, watch};
+use std::sync::{Arc, Mutex};
+use tokio::sync::{broadcast, watch};
 use url::Url;
 
 use crate::core::engine::{DownloadEngine, ProgressListener};
 use crate::core::job::JobState;
+
+pub type ApiError = (StatusCode, Json<serde_json::Value>);
+
+fn api_error(status: StatusCode, msg: impl ToString) -> ApiError {
+    (
+        status,
+        Json(serde_json::json!({
+            "error": msg.to_string(),
+        })),
+    )
+}
 
 pub struct WebJob {
     pub id: String,
@@ -34,12 +45,12 @@ pub struct AppState {
     pub jobs: Arc<Mutex<HashMap<String, WebJob>>>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct InspectRequest {
     pub url: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug, Clone)]
 pub struct InspectResponse {
     pub title: String,
     pub author: Option<String>,
@@ -48,12 +59,12 @@ pub struct InspectResponse {
     pub provider: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct DownloadRequest {
     pub url: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug, Clone)]
 pub struct DownloadResponse {
     pub job_id: String,
 }
@@ -85,51 +96,43 @@ impl ProgressListener for WebProgressListener {
             s => ("Running".to_string(), s.description().to_string(), None),
         };
 
-        let state = self.state.clone();
-        let job_id = self.job_id.clone();
+        if let Ok(mut lock) = self.state.jobs.lock()
+            && let Some(job) = lock.get_mut(&self.job_id)
+        {
+            job.status = status.clone();
+            job.stage = stage.clone();
+            job.error = error.clone();
 
-        tokio::spawn(async move {
-            let mut lock = state.jobs.lock().await;
-            if let Some(job) = lock.get_mut(&job_id) {
-                job.status = status.clone();
-                job.stage = stage.clone();
-                job.error = error.clone();
-
-                let evt = ProgressEvent {
-                    status,
-                    stage,
-                    completed_pages: job.completed_pages,
-                    total_pages: job.total_pages,
-                    error,
-                };
-                if let Ok(json) = serde_json::to_string(&evt) {
-                    let _ = job.tx.send(json);
-                }
+            let evt = ProgressEvent {
+                status,
+                stage,
+                completed_pages: job.completed_pages,
+                total_pages: job.total_pages,
+                error,
+            };
+            if let Ok(json) = serde_json::to_string(&evt) {
+                let _ = job.tx.send(json);
             }
-        });
+        }
     }
 
     fn on_page_completed(&self, page_index: u32, total_pages: u32, _bytes: u64, _from_cache: bool) {
-        let state = self.state.clone();
-        let job_id = self.job_id.clone();
-
-        tokio::spawn(async move {
-            let mut lock = state.jobs.lock().await;
-            if let Some(job) = lock.get_mut(&job_id) {
-                job.completed_pages = page_index;
-                job.total_pages = total_pages;
-                let evt = ProgressEvent {
-                    status: job.status.clone(),
-                    stage: format!("Downloaded {page_index}/{total_pages} pages"),
-                    completed_pages: page_index,
-                    total_pages,
-                    error: None,
-                };
-                if let Ok(json) = serde_json::to_string(&evt) {
-                    let _ = job.tx.send(json);
-                }
+        if let Ok(mut lock) = self.state.jobs.lock()
+            && let Some(job) = lock.get_mut(&self.job_id)
+        {
+            job.completed_pages = page_index;
+            job.total_pages = total_pages;
+            let evt = ProgressEvent {
+                status: job.status.clone(),
+                stage: format!("Downloaded {page_index}/{total_pages} pages"),
+                completed_pages: page_index,
+                total_pages,
+                error: None,
+            };
+            if let Ok(json) = serde_json::to_string(&evt) {
+                let _ = job.tx.send(json);
             }
-        });
+        }
     }
 
     fn on_log_message(&self, _message: &str) {}
@@ -138,15 +141,15 @@ impl ProgressListener for WebProgressListener {
 pub async fn inspect_handler(
     State(state): State<AppState>,
     Json(payload): Json<InspectRequest>,
-) -> Result<Json<InspectResponse>, (StatusCode, String)> {
+) -> Result<Json<InspectResponse>, ApiError> {
     let parsed_url = Url::parse(&payload.url)
-        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid URL: {e}")))?;
+        .map_err(|e| api_error(StatusCode::BAD_REQUEST, format!("Invalid URL: {e}")))?;
 
     let publication = state
         .engine
         .inspect(&parsed_url)
         .await
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+        .map_err(|e| api_error(StatusCode::BAD_REQUEST, e.to_string()))?;
 
     Ok(Json(InspectResponse {
         title: publication.title,
@@ -160,13 +163,13 @@ pub async fn inspect_handler(
 pub async fn download_handler(
     State(state): State<AppState>,
     Json(payload): Json<DownloadRequest>,
-) -> Result<Json<DownloadResponse>, (StatusCode, String)> {
+) -> Result<Json<DownloadResponse>, ApiError> {
     let parsed_url = Url::parse(&payload.url)
-        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid URL: {e}")))?;
+        .map_err(|e| api_error(StatusCode::BAD_REQUEST, format!("Invalid URL: {e}")))?;
 
     if !state.engine.client().is_local_mock_allowed() {
         crate::network::security::validate_url_security(&parsed_url)
-            .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+            .map_err(|e| api_error(StatusCode::BAD_REQUEST, e.to_string()))?;
     }
 
     let job_id = format!(
@@ -193,8 +196,12 @@ pub async fn download_handler(
     };
 
     {
-        let mut lock = state.jobs.lock().await;
-        lock.insert(job_id.clone(), job);
+        if let Ok(mut lock) = state.jobs.lock() {
+            if lock.len() >= 100 {
+                lock.retain(|_, j| j.status == "Queued" || j.status == "Running");
+            }
+            lock.insert(job_id.clone(), job);
+        }
     }
 
     let listener = Arc::new(WebProgressListener {
@@ -214,8 +221,9 @@ pub async fn download_handler(
             .download(&parsed_url, Some(&output_dir), listener, cancel_rx)
             .await;
 
-        let mut lock = bg_state.jobs.lock().await;
-        if let Some(j) = lock.get_mut(&bg_job_id) {
+        if let Ok(mut lock) = bg_state.jobs.lock()
+            && let Some(j) = lock.get_mut(&bg_job_id)
+        {
             match res {
                 Ok(path) => {
                     j.status = "Completed".to_string();
@@ -255,11 +263,14 @@ pub async fn download_handler(
 pub async fn sse_handler(
     State(state): State<AppState>,
     AxumPath(job_id): AxumPath<String>,
-) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, (StatusCode, String)> {
-    let lock = state.jobs.lock().await;
+) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, ApiError> {
+    let lock = state
+        .jobs
+        .lock()
+        .map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Lock poisoned"))?;
     let job = lock
         .get(&job_id)
-        .ok_or_else(|| (StatusCode::NOT_FOUND, "Job not found".to_string()))?;
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "Job not found"))?;
 
     let mut rx = job.tx.subscribe();
     let stream = async_stream::stream! {
@@ -274,23 +285,24 @@ pub async fn sse_handler(
 pub async fn file_handler(
     State(state): State<AppState>,
     AxumPath(job_id): AxumPath<String>,
-) -> Result<Response, (StatusCode, String)> {
-    let lock = state.jobs.lock().await;
+) -> Result<Response, ApiError> {
+    let lock = state
+        .jobs
+        .lock()
+        .map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Lock poisoned"))?;
     let job = lock
         .get(&job_id)
-        .ok_or_else(|| (StatusCode::NOT_FOUND, "Job not found".to_string()))?;
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "Job not found"))?;
 
-    let path = job.output_path.as_ref().ok_or_else(|| {
-        (
-            StatusCode::BAD_REQUEST,
-            "Job has no completed output file".to_string(),
-        )
-    })?;
+    let path = job
+        .output_path
+        .as_ref()
+        .ok_or_else(|| api_error(StatusCode::BAD_REQUEST, "Job has no completed output file"))?;
 
     let bytes = std::fs::read(path).map_err(|_e| {
-        (
+        api_error(
             StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to read downloaded file from storage".to_string(),
+            "Failed to read downloaded file from storage",
         )
     })?;
 
@@ -307,9 +319,9 @@ pub async fn file_handler(
         )
         .body(axum::body::Body::from(bytes))
         .map_err(|_e| {
-            (
+            api_error(
                 StatusCode::INTERNAL_SERVER_ERROR,
-                "Failed to build HTTP response".to_string(),
+                "Failed to build HTTP response",
             )
         })?;
 
@@ -319,11 +331,14 @@ pub async fn file_handler(
 pub async fn cancel_handler(
     State(state): State<AppState>,
     AxumPath(job_id): AxumPath<String>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let mut lock = state.jobs.lock().await;
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let mut lock = state
+        .jobs
+        .lock()
+        .map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "Lock poisoned"))?;
     let job = lock
         .get_mut(&job_id)
-        .ok_or_else(|| (StatusCode::NOT_FOUND, "Job not found".to_string()))?;
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "Job not found"))?;
 
     let _ = job.cancel_tx.send(true);
     job.status = "Cancelled".to_string();

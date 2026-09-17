@@ -258,11 +258,19 @@ impl DownloadEngine {
             });
 
             let semaphore = Arc::new(Semaphore::new(self.concurrency));
-            let mut tasks = Vec::new();
             let cancelled = Arc::new(AtomicBool::new(false));
+            let mut join_set = tokio::task::JoinSet::new();
 
             for page_idx in missing_pages {
-                let page_desc = publication.pages[(page_idx - 1) as usize].clone();
+                let page_desc = match publication.pages.get((page_idx - 1) as usize) {
+                    Some(p) => p.clone(),
+                    None => {
+                        return Err(DocDownloaderError::PageListInvalid {
+                            id: publication.publication_id.clone(),
+                            reason: format!("Page index {page_idx} out of bounds"),
+                        });
+                    }
+                };
                 let client = self.client.clone();
                 let cache = self.cache.clone();
                 let provider_name = publication.provider.clone();
@@ -271,7 +279,7 @@ impl DownloadEngine {
                 let is_cancelled = cancelled.clone();
                 let task_cancel_rx = cancel_rx.clone();
 
-                let task = tokio::spawn(async move {
+                join_set.spawn(async move {
                     let _permit = sem.acquire().await.map_err(|_| {
                         DocDownloaderError::InternalInvariantViolation {
                             reason: "Semaphore closed".to_string(),
@@ -295,7 +303,7 @@ impl DownloadEngine {
                         )
                         .await
                         {
-                            Ok(completed_asset) => return Ok(completed_asset),
+                            Ok(completed_asset) => return Ok((page_idx, completed_asset)),
                             Err(e) => {
                                 last_err = Some(e);
                             }
@@ -310,37 +318,39 @@ impl DownloadEngine {
                         }),
                     )
                 });
-
-                tasks.push((page_idx, task));
             }
 
-            for (idx, task) in tasks {
-                tokio::select! {
-                    res = task => {
-                        match res {
-                            Ok(Ok(asset)) => {
-                                manifest.record_completed_page(asset.clone());
-                                manifest.save_to_file(&manifest_file)?;
-                                listener.on_page_completed(idx, total_pages, asset.byte_size, false);
-                            }
-                            Ok(Err(e)) => {
-                                cancelled.store(true, Ordering::Relaxed);
-                                manifest.save_to_file(&manifest_file)?;
-                                return Err(e);
-                            }
-                            Err(join_err) => {
-                                cancelled.store(true, Ordering::Relaxed);
-                                manifest.save_to_file(&manifest_file)?;
-                                return Err(DocDownloaderError::InternalInvariantViolation {
-                                    reason: format!("Task panicked: {join_err}"),
-                                });
-                            }
-                        }
-                    }
-                    _ = cancel_rx.changed() => {
-                        cancelled.store(true, Ordering::Relaxed);
+            while let Some(res) = tokio::select! {
+                joined = join_set.join_next() => joined,
+                _ = cancel_rx.changed() => {
+                    cancelled.store(true, Ordering::Relaxed);
+                    join_set.abort_all();
+                    manifest.save_to_file(&manifest_file)?;
+                    return Err(DocDownloaderError::Cancelled);
+                }
+            } {
+                match res {
+                    Ok(Ok((idx, asset))) => {
+                        manifest.record_completed_page(asset.clone());
                         manifest.save_to_file(&manifest_file)?;
-                        return Err(DocDownloaderError::Cancelled);
+                        listener.on_page_completed(idx, total_pages, asset.byte_size, false);
+                    }
+                    Ok(Err(e)) => {
+                        cancelled.store(true, Ordering::Relaxed);
+                        join_set.abort_all();
+                        manifest.save_to_file(&manifest_file)?;
+                        return Err(e);
+                    }
+                    Err(join_err) => {
+                        if join_err.is_cancelled() {
+                            continue;
+                        }
+                        cancelled.store(true, Ordering::Relaxed);
+                        join_set.abort_all();
+                        manifest.save_to_file(&manifest_file)?;
+                        return Err(DocDownloaderError::InternalInvariantViolation {
+                            reason: format!("Task panicked: {join_err}"),
+                        });
                     }
                 }
             }

@@ -26,7 +26,9 @@ impl AtomicFileWriter {
             .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("output");
-        let temp_name = format!(".{file_name}.{}.part", std::process::id());
+        static ATOMIC_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+        let count = ATOMIC_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let temp_name = format!(".{file_name}.{}.{count}.part", std::process::id());
         let temp_path = parent.join(temp_name);
 
         let file = File::create(&temp_path).map_err(|e| DocDownloaderError::FileSystemError {
