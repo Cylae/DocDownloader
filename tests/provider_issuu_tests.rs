@@ -1,9 +1,9 @@
+use docdownloader::providers::PublicationProvider;
+use docdownloader::providers::issuu::IssuuProvider;
 use docdownloader::providers::issuu::models::IssuuReaderManifest;
 use docdownloader::providers::issuu::parser::{
     parse_issuu_reader_html, parse_issuu_reader_manifest,
 };
-use docdownloader::providers::issuu::IssuuProvider;
-use docdownloader::providers::PublicationProvider;
 use url::Url;
 
 #[test]
@@ -106,8 +106,9 @@ fn test_issuu_reader_fallback_html_parsing() {
     let html_content = include_str!("fixtures/issuu_reader_fallback.html");
     let canonical_url = "https://issuu.com/magazines/docs/sample_mag";
 
-    let publication = parse_issuu_reader_html(html_content, "magazines", "sample_mag", canonical_url)
-        .expect("parse html reader");
+    let publication =
+        parse_issuu_reader_html(html_content, "magazines", "sample_mag", canonical_url)
+            .expect("parse html reader");
 
     assert_eq!(publication.provider, "issuu");
     assert_eq!(publication.publication_id, "magazines/sample_mag");
@@ -119,6 +120,9 @@ fn test_issuu_reader_fallback_html_parsing() {
         assert_eq!(page.index, (idx + 1) as u32);
         assert!(!page.candidates.is_empty());
         // Verify canonical CDN candidate is generated
-        assert!(page.candidates.iter().any(|c| c.url.contains("image.isu.pub/240822153012-1234567890abcdef1234567890abcdef")));
+        assert!(page.candidates.iter().any(|c| {
+            c.url
+                .contains("image.isu.pub/240822153012-1234567890abcdef1234567890abcdef")
+        }));
     }
 }

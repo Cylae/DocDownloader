@@ -22,9 +22,11 @@ pub struct IssuuReaderManifest {
 impl IssuuReaderManifest {
     /// Resolves effective publication ID from top-level or nested document.
     pub fn effective_publication_id(&self) -> Option<&str> {
-        self.publication_id
-            .as_deref()
-            .or_else(|| self.document.as_ref().and_then(|d| d.publication_id.as_deref()))
+        self.publication_id.as_deref().or_else(|| {
+            self.document
+                .as_ref()
+                .and_then(|d| d.publication_id.as_deref())
+        })
     }
 
     /// Resolves effective revision ID as string.

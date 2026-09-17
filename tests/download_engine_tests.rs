@@ -274,16 +274,22 @@ fn test_registry_dispatches_all_supported_providers() {
     let slideshare_url = Url::parse("https://www.slideshare.net/author/deck-slug").unwrap();
     let scribd_url = Url::parse("https://www.scribd.com/document/123456789/Title").unwrap();
 
-    let calameo = registry.find_provider(&calameo_url).expect("calameo provider");
+    let calameo = registry
+        .find_provider(&calameo_url)
+        .expect("calameo provider");
     assert_eq!(calameo.name(), "calameo");
 
     let issuu = registry.find_provider(&issuu_url).expect("issuu provider");
     assert_eq!(issuu.name(), "issuu");
 
-    let slideshare = registry.find_provider(&slideshare_url).expect("slideshare provider");
+    let slideshare = registry
+        .find_provider(&slideshare_url)
+        .expect("slideshare provider");
     assert_eq!(slideshare.name(), "slideshare");
 
-    let scribd = registry.find_provider(&scribd_url).expect("scribd provider");
+    let scribd = registry
+        .find_provider(&scribd_url)
+        .expect("scribd provider");
     assert_eq!(scribd.name(), "scribd");
 
     let unknown_url = Url::parse("https://example.com/unsupported").unwrap();

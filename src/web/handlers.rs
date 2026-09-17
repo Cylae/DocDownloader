@@ -164,6 +164,11 @@ pub async fn download_handler(
     let parsed_url = Url::parse(&payload.url)
         .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid URL: {e}")))?;
 
+    if !state.engine.client().is_local_mock_allowed() {
+        crate::network::security::validate_url_security(&parsed_url)
+            .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+    }
+
     let job_id = format!(
         "job_{}",
         std::time::SystemTime::now()

@@ -76,8 +76,15 @@ impl DownloadEngine {
         }
     }
 
+    pub fn client(&self) -> &HttpClient {
+        &self.client
+    }
+
     /// Inspects publication without downloading the full document.
     pub async fn inspect(&self, url: &Url) -> Result<Publication, DocDownloaderError> {
+        if !self.client.is_local_mock_allowed() {
+            crate::network::security::validate_url_security(url)?;
+        }
         self.registry.resolve(&self.client, url).await
     }
 

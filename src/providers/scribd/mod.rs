@@ -25,6 +25,11 @@ impl ScribdProvider {
     }
 }
 
+static SCRIBD_ID_RE: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+    Regex::new(r#"/(?:document|doc|presentation|embeds|book)/(\d+)"#)
+        .expect("valid scribd id regex")
+});
+
 #[async_trait]
 impl PublicationProvider for ScribdProvider {
     fn name(&self) -> &'static str {
@@ -41,7 +46,11 @@ impl PublicationProvider for ScribdProvider {
             None => return false,
         };
 
-        if !host.contains("scribd.com") && !host.contains("scribd.test") {
+        let is_scribd_domain = host == "scribd.com"
+            || host.ends_with(".scribd.com")
+            || host == "scribd.test"
+            || host.ends_with(".scribd.test");
+        if !is_scribd_domain {
             return false;
         }
 
@@ -52,13 +61,7 @@ impl PublicationProvider for ScribdProvider {
         let path = url.path();
 
         // Pattern 1: /(?:document|doc|presentation|embeds|book)/(\d+)
-        let re = Regex::new(r#"/(?:document|doc|presentation|embeds|book)/(\d+)"#).map_err(|e| {
-            DocDownloaderError::InternalInvariantViolation {
-                reason: format!("Failed to compile Scribd ID regex: {e}"),
-            }
-        })?;
-
-        if let Some(caps) = re.captures(path)
+        if let Some(caps) = SCRIBD_ID_RE.captures(path)
             && let Some(id) = caps.get(1)
         {
             return Ok(id.as_str().to_string());

@@ -40,7 +40,11 @@ impl PublicationProvider for SlideShareProvider {
             None => return false,
         };
 
-        if !host.contains("slideshare.net") && !host.contains("slideshare.test") {
+        let is_slideshare_domain = host == "slideshare.net"
+            || host.ends_with(".slideshare.net")
+            || host == "slideshare.test"
+            || host.ends_with(".slideshare.test");
+        if !is_slideshare_domain {
             return false;
         }
 
@@ -62,7 +66,12 @@ impl PublicationProvider for SlideShareProvider {
 
         // Ignore utility routes
         let first = segments[0].to_ascii_lowercase();
-        if first == "explore" || first == "features" || first == "about" || first == "terms" || first == "privacy" {
+        if first == "explore"
+            || first == "features"
+            || first == "about"
+            || first == "terms"
+            || first == "privacy"
+        {
             return Err(DocDownloaderError::InvalidUrl {
                 url: url.to_string(),
                 reason: format!("Non-presentation SlideShare route: /{first}"),

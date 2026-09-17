@@ -1,9 +1,9 @@
+use docdownloader::providers::PublicationProvider;
+use docdownloader::providers::slideshare::SlideShareProvider;
 use docdownloader::providers::slideshare::models::SlideShareOEmbedResponse;
 use docdownloader::providers::slideshare::parser::{
     parse_slideshare_html, parse_slideshare_oembed,
 };
-use docdownloader::providers::slideshare::SlideShareProvider;
-use docdownloader::providers::PublicationProvider;
 use url::Url;
 
 #[test]
@@ -27,7 +27,10 @@ fn test_slideshare_provider_detection() {
     }
 
     let id = provider
-        .extract_id(&Url::parse("https://www.slideshare.net/techarchitect/cloud-native-design-patterns").unwrap())
+        .extract_id(
+            &Url::parse("https://www.slideshare.net/techarchitect/cloud-native-design-patterns")
+                .unwrap(),
+        )
         .expect("extract id");
     assert_eq!(id, "techarchitect/cloud-native-design-patterns");
 
@@ -84,15 +87,27 @@ fn test_slideshare_oembed_parsing() {
 
         // Priority 1: 2048px
         assert_eq!(page.candidates[0].priority, 1);
-        assert!(page.candidates[0].url.contains(&format!("cloud-native-{slide_num}-2048.jpg")));
+        assert!(
+            page.candidates[0]
+                .url
+                .contains(&format!("cloud-native-{slide_num}-2048.jpg"))
+        );
 
         // Priority 2: 1024px
         assert_eq!(page.candidates[1].priority, 2);
-        assert!(page.candidates[1].url.contains(&format!("cloud-native-{slide_num}-1024.jpg")));
+        assert!(
+            page.candidates[1]
+                .url
+                .contains(&format!("cloud-native-{slide_num}-1024.jpg"))
+        );
 
         // Priority 3: 638px
         assert_eq!(page.candidates[2].priority, 3);
-        assert!(page.candidates[2].url.contains(&format!("cloud-native-{slide_num}-638.jpg")));
+        assert!(
+            page.candidates[2]
+                .url
+                .contains(&format!("cloud-native-{slide_num}-638.jpg"))
+        );
     }
 }
 
@@ -101,12 +116,8 @@ fn test_slideshare_reader_fallback_html_parsing() {
     let html_content = include_str!("fixtures/slideshare_reader_fallback.html");
     let canonical_url = "https://www.slideshare.net/architect/dist-sys";
 
-    let publication = parse_slideshare_html(
-        html_content,
-        canonical_url,
-        "architect/dist-sys",
-    )
-    .expect("parse fallback html");
+    let publication = parse_slideshare_html(html_content, canonical_url, "architect/dist-sys")
+        .expect("parse fallback html");
 
     assert_eq!(publication.provider, "slideshare");
     assert_eq!(publication.publication_id, "architect/dist-sys");
@@ -117,7 +128,11 @@ fn test_slideshare_reader_fallback_html_parsing() {
     for (idx, page) in publication.pages.iter().enumerate() {
         let slide_num = idx + 1;
         assert_eq!(page.index, slide_num as u32);
-        assert!(page.candidates.iter().any(|c| c.url.contains(&format!("dist-sys-{slide_num}-2048.jpg"))));
+        assert!(
+            page.candidates
+                .iter()
+                .any(|c| c.url.contains(&format!("dist-sys-{slide_num}-2048.jpg")))
+        );
     }
 }
 

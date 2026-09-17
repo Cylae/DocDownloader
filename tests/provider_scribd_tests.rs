@@ -1,6 +1,6 @@
-use docdownloader::providers::scribd::parser::parse_scribd_embed_html;
-use docdownloader::providers::scribd::ScribdProvider;
 use docdownloader::providers::PublicationProvider;
+use docdownloader::providers::scribd::ScribdProvider;
+use docdownloader::providers::scribd::parser::parse_scribd_embed_html;
 use url::Url;
 
 #[test]

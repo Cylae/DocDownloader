@@ -45,7 +45,11 @@ impl PublicationProvider for CalameoProvider {
             None => return false,
         };
 
-        if !host.contains("calameo.com") && !host.contains("calameo.test") {
+        let is_calameo_domain = host == "calameo.com"
+            || host.ends_with(".calameo.com")
+            || host == "calameo.test"
+            || host.ends_with(".calameo.test");
+        if !is_calameo_domain {
             return false;
         }
 

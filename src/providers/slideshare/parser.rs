@@ -50,21 +50,19 @@ pub async fn resolve_via_oembed(
     parse_slideshare_oembed(&parsed, canonical_url, presentation_id)
 }
 
+static SLIDE_PATTERN: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+    Regex::new(r#"-\d+-(?:638|1024|2048)\.jpg"#).expect("valid slide pattern regex")
+});
+
 /// Helper to generate candidate resolutions from a SlideShare slide image URL.
-fn generate_slide_candidates(
-    base_url: &str,
-    idx: u32,
-    canonical_url: &str,
-) -> Vec<AssetCandidate> {
-    // Regex matching any slide number and resolution in the filename, e.g. -1-638.jpg or -1-2048.jpg
-    let pattern = Regex::new(r#"-\d+-(?:638|1024|2048)\.jpg"#).unwrap();
+fn generate_slide_candidates(base_url: &str, idx: u32, canonical_url: &str) -> Vec<AssetCandidate> {
     let clean_url = base_url.split('?').next().unwrap_or(base_url);
 
     let mut candidates = Vec::with_capacity(3);
 
-    if pattern.is_match(clean_url) {
+    if SLIDE_PATTERN.is_match(clean_url) {
         // Priority 1: High definition 2048px
-        let url_2048 = pattern
+        let url_2048 = SLIDE_PATTERN
             .replace(clean_url, format!("-{idx}-2048.jpg"))
             .to_string();
         candidates.push(AssetCandidate {
@@ -76,7 +74,7 @@ fn generate_slide_candidates(
         });
 
         // Priority 2: Standard high resolution 1024px
-        let url_1024 = pattern
+        let url_1024 = SLIDE_PATTERN
             .replace(clean_url, format!("-{idx}-1024.jpg"))
             .to_string();
         candidates.push(AssetCandidate {
@@ -88,7 +86,7 @@ fn generate_slide_candidates(
         });
 
         // Priority 3: Base preview 638px
-        let url_638 = pattern
+        let url_638 = SLIDE_PATTERN
             .replace(clean_url, format!("-{idx}-638.jpg"))
             .to_string();
         candidates.push(AssetCandidate {
@@ -283,7 +281,10 @@ pub fn parse_slideshare_html(
                 .and_then(|v| v.as_str());
 
             let mut sizes: Vec<(u32, u32)> = Vec::new();
-            if let Some(arr) = slides_obj.and_then(|s| s.get("imageSizes")).and_then(|v| v.as_array()) {
+            if let Some(arr) = slides_obj
+                .and_then(|s| s.get("imageSizes"))
+                .and_then(|v| v.as_array())
+            {
                 for item in arr {
                     let width = item.get("width").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
                     let quality = item.get("quality").and_then(|v| v.as_u64()).unwrap_or(85) as u32;
@@ -292,7 +293,7 @@ pub fn parse_slideshare_html(
                     }
                 }
             }
-            sizes.sort_by(|a, b| b.0.cmp(&a.0));
+            sizes.sort_by_key(|a| std::cmp::Reverse(a.0));
             if sizes.is_empty() {
                 sizes = vec![(2048, 75), (1024, 85), (638, 85)];
             }
@@ -377,13 +378,17 @@ pub fn parse_slideshare_html(
         reason: format!("Failed to compile cdn_img_re: {e}"),
     })?;
 
-    let template_url = cdn_img_re.captures(html).and_then(|c| c.get(0)).map(|m| m.as_str());
+    let template_url = cdn_img_re
+        .captures(html)
+        .and_then(|c| c.get(0))
+        .map(|m| m.as_str());
 
     // Extract slideshow ID if available: data-slideshow-id="(\d+)" or "slideshow_id":\s*"?(\d+)"?
-    let sid_re = Regex::new(r#"(?:data-slideshow-id=["'](\d+)["'])|(?:"slideshow_id":\s*"?(\d+)"?)"#)
-        .map_err(|e| DocDownloaderError::InternalInvariantViolation {
-            reason: format!("Failed to compile sid regex: {e}"),
-        })?;
+    let sid_re =
+        Regex::new(r#"(?:data-slideshow-id=["'](\d+)["'])|(?:"slideshow_id":\s*"?(\d+)"?)"#)
+            .map_err(|e| DocDownloaderError::InternalInvariantViolation {
+                reason: format!("Failed to compile sid regex: {e}"),
+            })?;
     let slideshow_id = sid_re
         .captures(html)
         .and_then(|c| c.get(1).or_else(|| c.get(2)))

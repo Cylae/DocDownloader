@@ -40,7 +40,11 @@ impl PublicationProvider for IssuuProvider {
             None => return false,
         };
 
-        if !host.contains("issuu.com") && !host.contains("issuu.test") {
+        let is_issuu_domain = host == "issuu.com"
+            || host.ends_with(".issuu.com")
+            || host == "issuu.test"
+            || host.ends_with(".issuu.test");
+        if !is_issuu_domain {
             return false;
         }
 
@@ -58,10 +62,15 @@ impl PublicationProvider for IssuuProvider {
                 d_param = Some(v.to_string());
             }
         }
-        if let (Some(u), Some(d)) = (u_param, d_param) {
-            if !u.is_empty() && !d.is_empty() {
-                return Ok(format!("{}/{}", u.to_ascii_lowercase(), d.to_ascii_lowercase()));
-            }
+        if let (Some(u), Some(d)) = (u_param, d_param)
+            && !u.is_empty()
+            && !d.is_empty()
+        {
+            return Ok(format!(
+                "{}/{}",
+                u.to_ascii_lowercase(),
+                d.to_ascii_lowercase()
+            ));
         }
 
         // Case 2: Path segments: /{username}/docs/{doc_slug}
@@ -96,7 +105,8 @@ impl PublicationProvider for IssuuProvider {
         let canonical_url = format!("https://issuu.com/{username}/docs/{doc_slug}");
 
         // Attempt structured reader manifest first
-        match parser::resolve_via_reader_manifest(client, username, doc_slug, &canonical_url).await {
+        match parser::resolve_via_reader_manifest(client, username, doc_slug, &canonical_url).await
+        {
             Ok(pub_doc) => Ok(pub_doc),
             Err(err) => {
                 tracing::warn!(

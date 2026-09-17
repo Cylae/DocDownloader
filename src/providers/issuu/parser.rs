@@ -277,20 +277,23 @@ pub fn parse_issuu_reader_html(
     }
 
     // Extract publicationId (hash) & revisionId
-    let pub_id_re = Regex::new(r#"(?:"publicationId"|publicationId\\"):\s*\\?"([a-zA-Z0-9_-]+)\\?""#)
-        .map_err(|e| DocDownloaderError::InternalInvariantViolation {
-            reason: format!("Failed to compile publicationId regex: {e}"),
-        })?;
+    let pub_id_re = Regex::new(
+        r#"(?:"publicationId"|publicationId\\"):\s*\\?"([a-zA-Z0-9_-]+)\\?""#,
+    )
+    .map_err(|e| DocDownloaderError::InternalInvariantViolation {
+        reason: format!("Failed to compile publicationId regex: {e}"),
+    })?;
     let pub_hash = pub_id_re
         .captures(html)
         .and_then(|c| c.get(1))
         .map(|m| m.as_str().to_string());
 
-    let rev_id_re = Regex::new(r#"(?:"revisionId"|revisionId\\"):\s*\\?"?(\d+)\\?"?"#).map_err(
-        |e| DocDownloaderError::InternalInvariantViolation {
-            reason: format!("Failed to compile revisionId regex: {e}"),
-        },
-    )?;
+    let rev_id_re =
+        Regex::new(r#"(?:"revisionId"|revisionId\\"):\s*\\?"?(\d+)\\?"?"#).map_err(|e| {
+            DocDownloaderError::InternalInvariantViolation {
+                reason: format!("Failed to compile revisionId regex: {e}"),
+            }
+        })?;
     let rev_id = rev_id_re
         .captures(html)
         .and_then(|c| c.get(1))
@@ -361,7 +364,10 @@ pub fn parse_issuu_reader_html(
         });
     }
 
-    let thumbnail_url = pages.first().and_then(|p| p.candidates.first()).map(|c| c.url.clone());
+    let thumbnail_url = pages
+        .first()
+        .and_then(|p| p.candidates.first())
+        .map(|c| c.url.clone());
 
     let publication = Publication {
         provider: "issuu".to_string(),

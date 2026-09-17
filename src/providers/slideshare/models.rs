@@ -28,8 +28,6 @@ impl SlideShareOEmbedResponse {
 
     /// Resolves best available thumbnail URL.
     pub fn effective_thumbnail(&self) -> Option<&str> {
-        self.thumbnail
-            .as_deref()
-            .or(self.thumbnail_url.as_deref())
+        self.thumbnail.as_deref().or(self.thumbnail_url.as_deref())
     }
 }

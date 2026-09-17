@@ -13,9 +13,10 @@ pub async fn resolve_via_embed(
     canonical_url: &str,
 ) -> Result<Publication, DocDownloaderError> {
     let embed_url = format!("{EMBED_BASE_URL}/{doc_id}/content?start_page=1&view_mode=scroll");
-    let headers = vec![
-        ("Referer".to_string(), format!("https://www.scribd.com/document/{doc_id}")),
-    ];
+    let headers = vec![(
+        "Referer".to_string(),
+        format!("https://www.scribd.com/document/{doc_id}"),
+    )];
 
     let resp = match client.get_with_retry(&embed_url, Some(&headers)).await {
         Ok(r) => r,
@@ -77,7 +78,13 @@ pub fn parse_scribd_embed_html(
     let title = title_re
         .captures(html)
         .and_then(|c| c.get(1).or_else(|| c.get(2)).or_else(|| c.get(3)))
-        .map(|m| m.as_str().replace(" | Scribd", "").replace(" - Scribd", "").trim().to_string())
+        .map(|m| {
+            m.as_str()
+                .replace(" | Scribd", "")
+                .replace(" - Scribd", "")
+                .trim()
+                .to_string()
+        })
         .filter(|s| !s.is_empty() && s != "Scribd")
         .unwrap_or_else(|| format!("Scribd_{doc_id}"));
 
@@ -125,14 +132,20 @@ pub fn parse_scribd_embed_html(
 
     // Extract token-based document CDN image template:
     // e.g. https://imgv2-1-f.scribdassets.com/img/document/448327126/original/009a8fbd77/1?v=1
-    let thumb_host_re = Regex::new(
-        r#"https?://([^"'\s/]+)/img/document/\d+/original/([a-zA-Z0-9_-]+)/"#,
-    )
-    .ok();
+    let thumb_host_re =
+        Regex::new(r#"https?://([^"'\s/]+)/img/document/\d+/original/([a-zA-Z0-9_-]+)/"#).ok();
     let doc_token = thumb_host_re
         .as_ref()
         .and_then(|re| re.captures(html))
-        .map(|c| (c.get(1).unwrap().as_str().to_string(), c.get(2).unwrap().as_str().to_string()));
+        .and_then(|c| match (c.get(1), c.get(2)) {
+            (Some(h), Some(t)) => Some((h.as_str().to_string(), t.as_str().to_string())),
+            _ => None,
+        });
+
+    let img_src_re = Regex::new(
+        r#"<img[^>]*class=["'][^"']*absimg[^"']*["'][^>]*(?:src|orig|data-src)=["']([^"']+)["']"#,
+    )
+    .ok();
 
     let mut pages = Vec::with_capacity(page_count as usize);
 
@@ -168,22 +181,20 @@ pub fn parse_scribd_embed_html(
         if let Ok(re) = Regex::new(&page_div_pattern)
             && let Some(caps) = re.captures(html)
             && let Some(inner) = caps.get(1)
+            && let Some(ref img_re) = img_src_re
+            && let Some(img_caps) = img_re.captures(inner.as_str())
+            && let Some(src) = img_caps.get(1)
         {
-            let img_src_re = Regex::new(r#"<img[^>]*class=["'][^"']*absimg[^"']*["'][^>]*(?:src|orig|data-src)=["']([^"']+)["']"#).unwrap();
-            if let Some(img_caps) = img_src_re.captures(inner.as_str())
-                && let Some(src) = img_caps.get(1)
-            {
-                let raw_src = src.as_str().to_string();
-                if !raw_src.contains("loading") && !raw_src.is_empty() {
-                    candidates.push(AssetCandidate {
-                        priority,
-                        url: raw_src,
-                        asset_type: AssetType::ImageJpeg,
-                        geometry: None,
-                        headers: vec![("Referer".to_string(), canonical_url.to_string())],
-                    });
-                    priority += 1;
-                }
+            let raw_src = src.as_str().to_string();
+            if !raw_src.contains("loading") && !raw_src.is_empty() {
+                candidates.push(AssetCandidate {
+                    priority,
+                    url: raw_src,
+                    asset_type: AssetType::ImageJpeg,
+                    geometry: None,
+                    headers: vec![("Referer".to_string(), canonical_url.to_string())],
+                });
+                priority += 1;
             }
         }
 
@@ -211,7 +222,9 @@ pub fn parse_scribd_embed_html(
         // Standard document CDN fallback
         candidates.push(AssetCandidate {
             priority,
-            url: format!("https://imgv2-1-f.scribdassets.com/img/document/{doc_id}/original/{idx}.jpg"),
+            url: format!(
+                "https://imgv2-1-f.scribdassets.com/img/document/{doc_id}/original/{idx}.jpg"
+            ),
             asset_type: AssetType::ImageJpeg,
             geometry: None,
             headers: vec![("Referer".to_string(), canonical_url.to_string())],
@@ -225,9 +238,14 @@ pub fn parse_scribd_embed_html(
     }
 
     let thumbnail_url = if let Some((ref host, ref token)) = doc_token {
-        Some(format!("https://{host}/img/document/{doc_id}/original/{token}/1?v=1"))
+        Some(format!(
+            "https://{host}/img/document/{doc_id}/original/{token}/1?v=1"
+        ))
     } else {
-        pages.first().and_then(|p| p.candidates.first()).map(|c| c.url.clone())
+        pages
+            .first()
+            .and_then(|p| p.candidates.first())
+            .map(|c| c.url.clone())
     };
 
     let publication = Publication {
