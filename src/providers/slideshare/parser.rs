@@ -51,6 +51,7 @@ pub async fn resolve_via_oembed(
 }
 
 static SLIDE_PATTERN: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+    // SAFETY: This is a static regex pattern that is mathematically established to be syntactically valid.
     Regex::new(r#"-\d+-(?:638|1024|2048)\.jpg"#).expect("valid slide pattern regex")
 });
 

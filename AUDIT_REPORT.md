@@ -252,6 +252,16 @@ A comprehensive threat assessment was conducted across all trust boundaries:
 - **Remediation**: Standardized API error response to `(StatusCode, Json({"error": ...}))` and hardened JS fetch response parsing.
 - **Validation**: Added `test_web_api_json_error_contracts` in `tests/download_engine_tests.rs`.
 
+### FINDING-8: Missing Safety Invariants for `.expect()` Usage
+- **Severity**: LOW
+- **Category**: Code Quality / Invariant Documentation
+- **Status**: FIXED
+- **Location**: `src/providers/scribd/mod.rs`, `src/providers/slideshare/parser.rs`
+- **Problem**: Static regex compilation with `Regex::new(...).expect(...)` lacked mandatory `// SAFETY:` invariant comments as required by project conventions.
+- **Impact**: Violation of strict no-unwrap/expect policy which mandates safety justifications.
+- **Remediation**: Added `// SAFETY:` comments documenting the mathematical and syntactic validity of the static regex patterns.
+- **Validation**: Manual code review and `grep` across `src/` confirming all `unwrap()` and `expect()` calls outside of tests are either removed or justified.
+
 ---
 
 ## Changes Implemented
@@ -265,9 +275,10 @@ A comprehensive threat assessment was conducted across all trust boundaries:
 8. `src/providers/scribd/mod.rs`: Hardened domain matching and cached Scribd ID regex.
 9. `src/providers/scribd/parser.rs`: Hoisted `img_src_re` outside loop, removed `.unwrap()`, and collapsed nested if blocks.
 10. `src/providers/slideshare/mod.rs`: Hardened domain matching.
-11. `src/providers/slideshare/parser.rs`: Replaced per-page regex compilation with static `LazyLock`, fixed `sort_by_key`.
+11. `src/providers/slideshare/parser.rs`: Replaced per-page regex compilation with static `LazyLock`, fixed `sort_by_key`. Added safety invariants for static regex compilation.
 12. `tests/download_engine_tests.rs`: Added tests for `AtomicFileWriter` isolation and Web API JSON error contracts.
 13. `tests/security_tests.rs`: Added tests covering domain spoofing, inspection SSRF, and parser fuzzing.
+14. `src/providers/scribd/mod.rs`: Added safety invariant comment for static regex compilation.
 
 ---
 

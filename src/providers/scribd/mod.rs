@@ -26,6 +26,7 @@ impl ScribdProvider {
 }
 
 static SCRIBD_ID_RE: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+    // SAFETY: This is a static regex pattern that is mathematically established to be syntactically valid.
     Regex::new(r#"/(?:document|doc|presentation|embeds|book)/(\d+)"#)
         .expect("valid scribd id regex")
 });
